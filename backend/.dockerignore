@@ -1,0 +1,10 @@
+# Keep the host's dev vendor/ out of the image: the Dockerfile installs its own.
+vendor
+var/cache
+logs/*
+!logs/README.md
+tests
+.phpunit.result.cache
+.git
+.idea
+.vscode

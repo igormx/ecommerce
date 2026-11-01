@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+backend/vendor/
+
+# Build output
+frontend/dist/
+
+# Runtime / generated
+backend/var/cache/
+backend/var/uploads/
+backend/logs/*
+!backend/logs/README.md
+.phpunit.result.cache
+coverage/
+
+# Environment and secrets (commit .env.example only)
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Claude Code local state (plans in .claude/plans are shared)
+.claude/settings.local.json
