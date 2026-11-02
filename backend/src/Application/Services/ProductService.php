@@ -14,6 +14,21 @@ use DateTimeImmutable;
 class ProductService
 {
     public const MAX_PAGE_SIZE = 100;
+    /** Keeps (page - 1) * size far from int overflow in the repository. */
+    public const MAX_PAGE = 1_000_000;
+
+    // Limits mirroring the `products` columns (see db/init/01-schema.sql).
+    public const MAX_SKU_LENGTH = 32;
+    public const MAX_NAME_LENGTH = 255;
+    public const MAX_CATEGORY_LENGTH = 100;
+    /** TEXT holds 65535 bytes (not characters). */
+    public const MAX_DESCRIPTION_BYTES = 65535;
+    /** DECIMAL(10,2) UNSIGNED, expressed in cents. */
+    public const MAX_PRICE_CENTS = 9_999_999_999;
+    /** INT UNSIGNED. */
+    public const MAX_STOCK = 4_294_967_295;
+    /** DECIMAL(8,3) UNSIGNED. */
+    public const MAX_WEIGHT_KG = 99999.999;
 
     public function __construct(private readonly ProductRepositoryInterface $products)
     {
@@ -24,7 +39,7 @@ class ProductService
      */
     public function list(int $page = 1, int $size = 20): array
     {
-        return $this->products->findAll(max(1, $page), $this->clampSize($size));
+        return $this->products->findAll($this->clampPage($page), $this->clampSize($size));
     }
 
     /**
@@ -58,7 +73,9 @@ class ProductService
     ): Product {
         $sku = trim($sku);
         $name = trim($name);
-        $this->validate($sku, $name, $priceCents, $stock, $weightKg);
+        $description = $this->nullIfBlank($description);
+        $category = $this->nullIfBlank($category);
+        $this->validate($sku, $name, $description, $category, $priceCents, $stock, $weightKg);
 
         if ($this->skuExists($sku)) {
             throw new DuplicateSkuException($sku);
@@ -70,8 +87,8 @@ class ProductService
             null,
             $sku,
             $name,
-            $this->nullIfBlank($description),
-            $this->nullIfBlank($category),
+            $description,
+            $category,
             $priceCents,
             $stock,
             $weightKg,
@@ -102,7 +119,9 @@ class ProductService
 
         $sku = trim($sku);
         $name = trim($name);
-        $this->validate($sku, $name, $priceCents, $stock, $weightKg);
+        $description = $this->nullIfBlank($description);
+        $category = $this->nullIfBlank($category);
+        $this->validate($sku, $name, $description, $category, $priceCents, $stock, $weightKg);
 
         if ($sku !== $existing->sku && $this->skuExists($sku)) {
             throw new DuplicateSkuException($sku);
@@ -112,8 +131,8 @@ class ProductService
             $existing->id,
             $sku,
             $name,
-            $this->nullIfBlank($description),
-            $this->nullIfBlank($category),
+            $description,
+            $category,
             $priceCents,
             $stock,
             $weightKg,
@@ -141,29 +160,54 @@ class ProductService
         return $this->products->search(
             trim($query),
             $this->nullIfBlank($category),
-            max(1, $page),
+            $this->clampPage($page),
             $this->clampSize($size),
         );
     }
 
-    private function validate(string $sku, string $name, int $priceCents, int $stock, ?float $weightKg): void
-    {
+    private function validate(
+        string $sku,
+        string $name,
+        ?string $description,
+        ?string $category,
+        int $priceCents,
+        int $stock,
+        ?float $weightKg,
+    ): void {
         $errors = [];
 
         if ($name === '') {
             $errors['name'] = 'Name is required.';
+        } elseif (mb_strlen($name) > self::MAX_NAME_LENGTH) {
+            $errors['name'] = 'Name must be at most ' . self::MAX_NAME_LENGTH . ' characters.';
         }
         if ($sku === '') {
             $errors['sku'] = 'SKU is required.';
+        } elseif (mb_strlen($sku) > self::MAX_SKU_LENGTH) {
+            $errors['sku'] = 'SKU must be at most ' . self::MAX_SKU_LENGTH . ' characters.';
+        }
+        if ($description !== null && strlen($description) > self::MAX_DESCRIPTION_BYTES) {
+            $errors['description'] = 'Description must be at most ' . self::MAX_DESCRIPTION_BYTES . ' bytes.';
+        }
+        if ($category !== null && mb_strlen($category) > self::MAX_CATEGORY_LENGTH) {
+            $errors['category'] = 'Category must be at most ' . self::MAX_CATEGORY_LENGTH . ' characters.';
         }
         if ($priceCents < 0) {
             $errors['priceCents'] = 'Price must be greater than or equal to 0.';
+        } elseif ($priceCents > self::MAX_PRICE_CENTS) {
+            $errors['priceCents'] = 'Price must be at most ' . self::MAX_PRICE_CENTS . ' cents.';
         }
         if ($stock < 0) {
             $errors['stock'] = 'Stock must be greater than or equal to 0.';
+        } elseif ($stock > self::MAX_STOCK) {
+            $errors['stock'] = 'Stock must be at most ' . self::MAX_STOCK . '.';
         }
-        if ($weightKg !== null && $weightKg < 0) {
-            $errors['weightKg'] = 'Weight must be greater than or equal to 0.';
+        if ($weightKg !== null) {
+            if (is_nan($weightKg) || $weightKg < 0) {
+                $errors['weightKg'] = 'Weight must be greater than or equal to 0.';
+            } elseif ($weightKg > self::MAX_WEIGHT_KG) {
+                $errors['weightKg'] = 'Weight must be at most ' . self::MAX_WEIGHT_KG . '.';
+            }
         }
 
         if ($errors !== []) {
@@ -190,6 +234,11 @@ class ProductService
         $value = trim($value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function clampPage(int $page): int
+    {
+        return min(self::MAX_PAGE, max(1, $page));
     }
 
     private function clampSize(int $size): int

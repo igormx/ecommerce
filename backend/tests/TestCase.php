@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Application\Handlers\HttpErrorHandler;
 use DI\ContainerBuilder;
 use Exception;
 use PHPUnit\Framework\TestCase as PHPUnit_TestCase;
@@ -21,10 +22,11 @@ class TestCase extends PHPUnit_TestCase
     use ProphecyTrait;
 
     /**
+     * @param array $definitions extra container definitions, e.g. to swap a repository for a fake
      * @return App
      * @throws Exception
      */
-    protected function getAppInstance(): App
+    protected function getAppInstance(array $definitions = []): App
     {
         // Instantiate PHP-DI ContainerBuilder
         $containerBuilder = new ContainerBuilder();
@@ -43,6 +45,9 @@ class TestCase extends PHPUnit_TestCase
         $repositories = require __DIR__ . '/../app/repositories.php';
         $repositories($containerBuilder);
 
+        // Test-specific overrides
+        $containerBuilder->addDefinitions($definitions);
+
         // Build PHP-DI Container instance
         $container = $containerBuilder->build();
 
@@ -57,6 +62,14 @@ class TestCase extends PHPUnit_TestCase
         // Register routes
         $routes = require __DIR__ . '/../app/routes.php';
         $routes($app);
+
+        // Same pipeline as public/index.php, so error responses are the real ones
+        $app->addRoutingMiddleware();
+        $app->addBodyParsingMiddleware();
+        $errorMiddleware = $app->addErrorMiddleware(false, false, false);
+        $errorMiddleware->setDefaultErrorHandler(
+            new HttpErrorHandler($app->getCallableResolver(), $app->getResponseFactory())
+        );
 
         return $app;
     }

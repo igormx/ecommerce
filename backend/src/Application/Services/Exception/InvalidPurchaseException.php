@@ -13,6 +13,11 @@ final class InvalidPurchaseException extends DomainException
         return new self(sprintf('Invalid quantity %d for product %d: must be greater than 0.', $quantity, $productId));
     }
 
+    public static function tooManyLines(int $max): self
+    {
+        return new self(sprintf('A purchase can contain at most %d lines.', $max));
+    }
+
     public static function nonIntegerLine(): self
     {
         return new self('Product ids and quantities must be integers.');

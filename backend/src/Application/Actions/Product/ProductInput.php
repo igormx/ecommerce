@@ -1,0 +1,76 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Application\Actions\Product;
+
+use App\Application\Actions\Validation\RequestValidator;
+use App\Application\Services\Exception\ValidationException;
+use App\Application\Services\ProductService;
+use Respect\Validation\Validatable;
+use Respect\Validation\Validator as v;
+
+/**
+ * The validated request body of the product write endpoints (create and
+ * full-replace update), as typed values ready for ProductService.
+ *
+ * `description`, `category` and `weightKg` are nullable; an absent key is
+ * treated like an explicit null.
+ */
+final class ProductInput
+{
+    private function __construct(
+        public readonly string $sku,
+        public readonly string $name,
+        public readonly ?string $description,
+        public readonly ?string $category,
+        public readonly int $priceCents,
+        public readonly int $stock,
+        public readonly ?float $weightKg,
+    ) {
+    }
+
+    /**
+     * @return array<string, Validatable>
+     */
+    public static function rules(): array
+    {
+        return [
+            'sku' => v::stringType()->length(1, ProductService::MAX_SKU_LENGTH),
+            'name' => v::stringType()->length(1, ProductService::MAX_NAME_LENGTH),
+            'description' => v::nullable(v::stringType()->length(null, ProductService::MAX_DESCRIPTION_BYTES)),
+            'category' => v::nullable(v::stringType()->length(null, ProductService::MAX_CATEGORY_LENGTH)),
+            'priceCents' => v::intType()->between(0, ProductService::MAX_PRICE_CENTS),
+            'stock' => v::intType()->between(0, ProductService::MAX_STOCK),
+            'weightKg' => v::nullable(
+                v::oneOf(v::intType(), v::floatType())->between(0, ProductService::MAX_WEIGHT_KG)
+            ),
+        ];
+    }
+
+    /**
+     * @param array<array-key, mixed> $body
+     * @throws ValidationException
+     */
+    public static function fromBody(array $body): self
+    {
+        // The length limits apply to the trimmed value, which is what gets stored.
+        foreach (['sku', 'name'] as $field) {
+            if (isset($body[$field]) && is_string($body[$field])) {
+                $body[$field] = trim($body[$field]);
+            }
+        }
+
+        $data = (new RequestValidator())->validate($body, self::rules());
+
+        return new self(
+            $data['sku'],
+            $data['name'],
+            $data['description'] ?? null,
+            $data['category'] ?? null,
+            $data['priceCents'],
+            $data['stock'],
+            isset($data['weightKg']) ? (float) $data['weightKg'] : null,
+        );
+    }
+}

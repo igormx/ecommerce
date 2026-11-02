@@ -79,6 +79,84 @@ class ProductServiceTest extends TestCase
         }
     }
 
+    public function testCreateRejectsValuesTooLargeForTheDatabase(): void
+    {
+        $this->repo->save(Argument::any())->shouldNotBeCalled();
+
+        try {
+            $this->service->create(
+                str_repeat('s', 33),
+                str_repeat('n', 256),
+                str_repeat('d', 65536),
+                str_repeat('c', 101),
+                ProductService::MAX_PRICE_CENTS + 1,
+                ProductService::MAX_STOCK + 1,
+                100000.0,
+            );
+            $this->fail('Expected ValidationException');
+        } catch (ValidationException $e) {
+            $this->assertEqualsCanonicalizing(
+                ['name', 'sku', 'description', 'category', 'priceCents', 'stock', 'weightKg'],
+                array_keys($e->errors)
+            );
+        }
+    }
+
+    public function testUpdateRejectsValuesTooLargeForTheDatabase(): void
+    {
+        $this->repo->findById(7)->willReturn($this->product(7, 'SKU-7'));
+        $this->repo->save(Argument::any())->shouldNotBeCalled();
+
+        $this->expectException(ValidationException::class);
+        $this->service->update(7, str_repeat('s', 33), 'N', null, null, 1, 1);
+    }
+
+    public function testLimitsAreInclusive(): void
+    {
+        $sku = str_repeat('s', 32);
+        $this->repo->findBySku($sku)->willThrow(ProductNotFoundException::forSku($sku));
+        $this->repo->save(Argument::type(Product::class))->willReturn($this->product())->shouldBeCalledOnce();
+
+        $this->service->create(
+            $sku,
+            str_repeat('n', 255),
+            str_repeat('d', 65535),
+            str_repeat('c', 100),
+            ProductService::MAX_PRICE_CENTS,
+            ProductService::MAX_STOCK,
+            ProductService::MAX_WEIGHT_KG,
+        );
+    }
+
+    public function testLengthsAreMeasuredAfterTrimmingAndInCharacters(): void
+    {
+        $sku = str_repeat('é', 32);
+        $this->repo->findBySku($sku)->willThrow(ProductNotFoundException::forSku($sku));
+        $this->repo->save(Argument::type(Product::class))->willReturn($this->product())->shouldBeCalledOnce();
+
+        // 32 two-byte characters plus padding that trimming removes.
+        $this->service->create(' ' . $sku . ' ', 'N', null, '  ', 1, 1);
+    }
+
+    public function testDescriptionLimitIsInBytes(): void
+    {
+        $this->repo->save(Argument::any())->shouldNotBeCalled();
+
+        try {
+            // 40000 two-byte characters = 80000 bytes, over TEXT's 65535.
+            $this->service->create('S', 'N', str_repeat('é', 40000), null, 1, 1);
+            $this->fail('Expected ValidationException');
+        } catch (ValidationException $e) {
+            $this->assertSame(['description'], array_keys($e->errors));
+        }
+    }
+
+    public function testWeightInfinityIsRejected(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->service->create('S', 'N', null, null, 1, 1, INF);
+    }
+
     public function testZeroValuesAreValid(): void
     {
         $this->repo->findBySku('S')->willThrow(ProductNotFoundException::forSku('S'));
@@ -130,6 +208,19 @@ class ProductServiceTest extends TestCase
     {
         $this->repo->findAll(1, 100)->willReturn([])->shouldBeCalledOnce();
         $this->assertSame([], $this->service->list(0, 5000));
+    }
+
+    public function testListClampsHugePage(): void
+    {
+        $this->repo->findAll(ProductService::MAX_PAGE, 20)->willReturn([])->shouldBeCalledOnce();
+        $this->assertSame([], $this->service->list(PHP_INT_MAX));
+    }
+
+    public function testSearchClampsHugePage(): void
+    {
+        $this->repo->search('shoe', null, ProductService::MAX_PAGE, 20)->willReturn([])->shouldBeCalledOnce();
+        $this->service->search('shoe', null, PHP_INT_MAX);
+        $this->addToAssertionCount(1);
     }
 
     public function testSearchTrimsAndNormalizesBlankCategory(): void

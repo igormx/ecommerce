@@ -20,6 +20,11 @@ use DateTimeImmutable;
 
 class PurchaseService
 {
+    /** Maximum number of distinct products in one purchase. */
+    public const MAX_LINES = 50;
+    /** Maximum quantity of a single product in one purchase. */
+    public const MAX_QUANTITY = 1000;
+
     public function __construct(
         private readonly ProductRepositoryInterface $products,
         private readonly OrderRepositoryInterface $orders,
@@ -42,11 +47,15 @@ class PurchaseService
             throw InvalidPurchaseException::emptyPurchase();
         }
 
+        if (count($lines) > self::MAX_LINES) {
+            throw InvalidPurchaseException::tooManyLines(self::MAX_LINES);
+        }
+
         foreach ($lines as $productId => $quantity) {
             if (!is_int($productId) || !is_int($quantity)) {
                 throw InvalidPurchaseException::nonIntegerLine();
             }
-            if ($quantity <= 0) {
+            if ($quantity <= 0 || $quantity > self::MAX_QUANTITY) {
                 throw InvalidPurchaseException::invalidQuantity($productId, $quantity);
             }
         }

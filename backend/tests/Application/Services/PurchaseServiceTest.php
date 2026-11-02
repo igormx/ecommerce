@@ -179,4 +179,31 @@ class PurchaseServiceTest extends TestCase
 
         $this->orders->save(Argument::any())->shouldNotHaveBeenCalled();
     }
+
+    public function testInactiveProductIsTreatedAsNotFound(): void
+    {
+        $this->products->findByIds([1])->willReturn([$this->product(1, 1000, 5, false)]);
+        $this->payments->charge(\Prophecy\Argument::any())->shouldNotBeCalled();
+        $this->products->decrementStock(\Prophecy\Argument::cetera())->shouldNotBeCalled();
+
+        $this->expectException(ProductNotFoundException::class);
+
+        $this->service->purchase([1 => 1]);
+    }
+
+    public function testRejectsQuantityAboveMaximum(): void
+    {
+        $this->expectException(InvalidPurchaseException::class);
+
+        $this->service->purchase([1 => PurchaseService::MAX_QUANTITY + 1]);
+    }
+
+    public function testRejectsTooManyLines(): void
+    {
+        $lines = array_fill_keys(range(1, PurchaseService::MAX_LINES + 1), 1);
+
+        $this->expectException(InvalidPurchaseException::class);
+
+        $this->service->purchase($lines);
+    }
 }

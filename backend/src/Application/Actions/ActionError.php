@@ -9,7 +9,9 @@ use JsonSerializable;
 class ActionError implements JsonSerializable
 {
     public const BAD_REQUEST = 'BAD_REQUEST';
+    public const CONFLICT = 'CONFLICT';
     public const INSUFFICIENT_PRIVILEGES = 'INSUFFICIENT_PRIVILEGES';
+    public const INSUFFICIENT_STOCK = 'INSUFFICIENT_STOCK';
     public const NOT_ALLOWED = 'NOT_ALLOWED';
     public const NOT_IMPLEMENTED = 'NOT_IMPLEMENTED';
     public const RESOURCE_NOT_FOUND = 'RESOURCE_NOT_FOUND';
@@ -22,10 +24,19 @@ class ActionError implements JsonSerializable
 
     private ?string $description;
 
-    public function __construct(string $type, ?string $description = null)
+    /**
+     * @var array<string, string>|null field => message, set only for VALIDATION_ERROR
+     */
+    private ?array $fields;
+
+    /**
+     * @param array<string, string>|null $fields field => message
+     */
+    public function __construct(string $type, ?string $description = null, ?array $fields = null)
     {
         $this->type = $type;
         $this->description = $description;
+        $this->fields = $fields;
     }
 
     public function getType(): string
@@ -50,12 +61,35 @@ class ActionError implements JsonSerializable
         return $this;
     }
 
+    /**
+     * @return array<string, string>|null
+     */
+    public function getFields(): ?array
+    {
+        return $this->fields;
+    }
+
+    /**
+     * @param array<string, string>|null $fields
+     */
+    public function setFields(?array $fields): self
+    {
+        $this->fields = $fields;
+        return $this;
+    }
+
     #[\ReturnTypeWillChange]
     public function jsonSerialize(): array
     {
-        return [
+        $serialized = [
             'type' => $this->type,
             'description' => $this->description,
         ];
+
+        if ($this->fields !== null) {
+            $serialized['fields'] = $this->fields;
+        }
+
+        return $serialized;
     }
 }

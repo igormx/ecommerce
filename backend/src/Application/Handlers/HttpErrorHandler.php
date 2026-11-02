@@ -6,6 +6,10 @@ namespace App\Application\Handlers;
 
 use App\Application\Actions\ActionError;
 use App\Application\Actions\ActionPayload;
+use App\Application\Services\Exception\InvalidPurchaseException;
+use App\Application\Services\Exception\ValidationException;
+use App\Domain\Product\Exception\DuplicateSkuException;
+use App\Domain\Product\Exception\InsufficientStockException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Exception\HttpBadRequestException;
 use Slim\Exception\HttpException;
@@ -31,7 +35,20 @@ class HttpErrorHandler extends SlimErrorHandler
             'An internal error has occurred while processing your request.'
         );
 
-        if ($exception instanceof HttpException) {
+        if ($exception instanceof ValidationException) {
+            $statusCode = 400;
+            $fields = $exception->errors !== [] ? $exception->errors : null;
+            $error = new ActionError(ActionError::VALIDATION_ERROR, 'The request is invalid.', $fields);
+        } elseif ($exception instanceof InvalidPurchaseException) {
+            $statusCode = 400;
+            $error = new ActionError(ActionError::VALIDATION_ERROR, $exception->getMessage());
+        } elseif ($exception instanceof DuplicateSkuException) {
+            $statusCode = 409;
+            $error = new ActionError(ActionError::CONFLICT, $exception->getMessage());
+        } elseif ($exception instanceof InsufficientStockException) {
+            $statusCode = 409;
+            $error = new ActionError(ActionError::INSUFFICIENT_STOCK, $exception->getMessage());
+        } elseif ($exception instanceof HttpException) {
             $statusCode = $exception->getCode();
             $error->setDescription($exception->getMessage());
 
@@ -51,7 +68,7 @@ class HttpErrorHandler extends SlimErrorHandler
         }
 
         if (
-            !($exception instanceof HttpException)
+            $statusCode === 500
             && $exception instanceof Throwable
             && $this->displayErrorDetails
         ) {
