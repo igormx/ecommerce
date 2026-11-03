@@ -7,8 +7,7 @@ namespace App\Domain\Product;
 use DateTimeImmutable;
 
 /**
- * Data-only, immutable Product entity. Maps to the `products` table.
- * Money is represented as integer cents (`priceCents`).
+ * Money is integer cents.
  */
 final class Product
 {

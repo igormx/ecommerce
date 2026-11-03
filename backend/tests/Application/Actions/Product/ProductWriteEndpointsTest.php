@@ -328,7 +328,7 @@ class ProductWriteEndpointsTest extends TestCase
     public function testPurchaseBetweenReadAndPutInvalidatesTheStalePut(): void
     {
         $loadedVersion = $this->repo->findById(1)->version;
-        $this->assertTrue($this->repo->decrementStock(1, 2)); // a customer buys 2
+        $this->assertTrue($this->repo->decrementStock(1, 2));
         $body = $this->updateBody($loadedVersion);
         $body['stock'] = 5; // admin's absolute number, from before the purchase
 

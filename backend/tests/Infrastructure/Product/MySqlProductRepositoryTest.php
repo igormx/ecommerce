@@ -494,7 +494,7 @@ class MySqlProductRepositoryTest extends TestCase
         $this->assertSame(3, $saved->version);
         $this->assertCount(10, $updateBinds);
         $this->assertSame([9, 4, PDO::PARAM_INT], $updateBinds[8]);
-        $this->assertSame([10, 1, PDO::PARAM_INT], $updateBinds[9]); // the version the caller read
+        $this->assertSame([10, 1, PDO::PARAM_INT], $updateBinds[9]);
     }
 
     public function testSaveUpdateWithStaleVersionThrowsStale(): void

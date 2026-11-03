@@ -7,7 +7,6 @@ export const STORAGE_KEY = 'ecommerce.cart.v1';
 export const MAX_LINES = 50; // API limit on purchase items
 export const MAX_QUANTITY = 1000; // API limit per line
 
-/** Highest quantity the UI allows for a product. */
 export function maxQuantity(product) {
   return Math.max(0, Math.min(product.stock, MAX_QUANTITY));
 }
@@ -26,7 +25,7 @@ export function cartReducer(state, action) {
   switch (action.type) {
     case 'add': {
       const product = snapshot(action.product);
-      if (maxQuantity(product) < 1) return state; // out of stock
+      if (maxQuantity(product) < 1) return state;
       const existing = state[product.id];
       if (!existing && Object.keys(state).length >= MAX_LINES) return state;
       const wanted = (existing ? existing.quantity : 0) + (action.quantity ?? 1);
@@ -49,7 +48,7 @@ export function cartReducer(state, action) {
     case 'clear':
       return {};
     case 'replace':
-      // Used after refreshing prices/stock: the caller supplies the full new state.
+      // Replaces the whole cart (after price/stock refresh).
       return action.state;
     default:
       return state;
@@ -73,7 +72,7 @@ function isValidLine(line) {
   );
 }
 
-/** Reads the persisted cart; anything malformed is ignored (empty cart or dropped line). */
+/** Malformed entries are dropped. */
 export function loadCart() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);

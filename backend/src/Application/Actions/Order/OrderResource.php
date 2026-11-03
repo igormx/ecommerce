@@ -8,9 +8,6 @@ use App\Domain\Order\Order;
 use App\Domain\Order\OrderItem;
 use DateTimeInterface;
 
-/**
- * Maps an Order entity (and its items) to its JSON representation.
- */
 final class OrderResource
 {
     /**

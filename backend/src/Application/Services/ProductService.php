@@ -46,7 +46,7 @@ class ProductService
     }
 
     /**
-     * Count of active products, matching list()'s filter.
+     * Matches list()'s filter.
      */
     public function count(): int
     {
@@ -120,9 +120,7 @@ class ProductService
     }
 
     /**
-     * Full update of the editable fields, guarded by optimistic concurrency:
-     * $expectedVersion is the `version` the caller last read; if the row has
-     * changed since (another edit or a purchase), nothing is written.
+     * Writes nothing if the row's version differs from $expectedVersion.
      *
      * @throws ProductNotFoundException
      * @throws StaleProductException
@@ -195,8 +193,7 @@ class ProductService
     }
 
     /**
-     * Count of active products matching search()'s filter, same semantics
-     * for $query and $category.
+     * Matches search()'s filter.
      */
     public function countSearch(string $query, ?string $category = null): int
     {

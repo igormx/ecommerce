@@ -10,10 +10,6 @@ use App\Application\Services\PurchaseService;
 use Respect\Validation\Validatable;
 use Respect\Validation\Validator as v;
 
-/**
- * The validated request body of `POST /purchases`, as the
- * `productId => quantity` map PurchaseService expects.
- */
 final class PurchaseInput
 {
     /**
@@ -24,8 +20,6 @@ final class PurchaseInput
     }
 
     /**
-     * Rules for the top-level body.
-     *
      * @return array<string, Validatable>
      */
     public static function rules(): array
@@ -36,8 +30,6 @@ final class PurchaseInput
     }
 
     /**
-     * Rules for each element of `items`.
-     *
      * @return array<string, Validatable>
      */
     public static function lineRules(): array

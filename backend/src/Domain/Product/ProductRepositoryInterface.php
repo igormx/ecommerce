@@ -11,14 +11,12 @@ use App\Domain\Product\Exception\StaleProductException;
 interface ProductRepositoryInterface
 {
     /**
-     * Returns a page of active products.
-     *
      * @return Product[]
      */
     public function findAll(int $page, int $size): array;
 
     /**
-     * Count of active products, matching findAll()'s filter.
+     * Matches findAll()'s filter.
      */
     public function countAll(): int;
 
@@ -67,8 +65,7 @@ interface ProductRepositoryInterface
     public function search(string $query, ?string $category, int $page, int $size): array;
 
     /**
-     * Count of active products matching search()'s filter, same semantics
-     * for $query and $category.
+     * Matches search()'s filter.
      */
     public function countSearch(string $query, ?string $category): int;
 

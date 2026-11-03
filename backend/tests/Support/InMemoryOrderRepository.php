@@ -9,9 +9,6 @@ use App\Domain\Order\Order;
 use App\Domain\Order\OrderItem;
 use App\Domain\Order\OrderRepositoryInterface;
 
-/**
- * In-memory OrderRepositoryInterface fake for tests that run the real Slim app.
- */
 class InMemoryOrderRepository implements OrderRepositoryInterface
 {
     /** @var array<int, Order> */

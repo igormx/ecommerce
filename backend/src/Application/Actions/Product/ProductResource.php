@@ -7,9 +7,6 @@ namespace App\Application\Actions\Product;
 use App\Domain\Product\Product;
 use DateTimeInterface;
 
-/**
- * Maps a Product entity to its JSON representation.
- */
 final class ProductResource
 {
     /**

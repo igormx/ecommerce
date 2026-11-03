@@ -1,9 +1,7 @@
 // Thin wrapper around fetch for the /api backend.
 //
-// Every success response is enveloped as `{ statusCode, data, meta? }`;
-// every error response is enveloped as `{ statusCode, error: { type, description, fields? } }`
-// (see README.md "API" / "Errors"). `request()` unwraps both shapes so the
-// rest of the app never touches the envelope directly.
+// Success responses are `{ statusCode, data, meta? }`; errors are
+// `{ statusCode, error: { type, description, fields? } }`. `request()` unwraps both.
 
 export class ApiError extends Error {
   constructor({ status, type, description, fields }) {
@@ -32,12 +30,6 @@ function serverError(status) {
   });
 }
 
-/**
- * @param {string} method HTTP method, e.g. 'GET', 'POST', 'PUT', 'DELETE'
- * @param {string} path path under /api, e.g. '/products/1' (leading slash required)
- * @param {unknown} [body] request body, sent as JSON when present
- * @returns {Promise<{ data: unknown, meta: unknown | undefined }>}
- */
 export async function request(method, path, body) {
   const hasBody = body !== undefined;
 
@@ -49,7 +41,6 @@ export async function request(method, path, body) {
       body: hasBody ? JSON.stringify(body) : undefined,
     });
   } catch {
-    // fetch rejects on network failures (offline, connection refused, CORS, etc.)
     throw networkError();
   }
 

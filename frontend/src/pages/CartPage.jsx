@@ -92,12 +92,11 @@ export default function CartPage() {
             dropped.push(line.product.name);
           } else {
             failed = true;
-            next[line.product.id] = line; // unknown: keep as is
+            next[line.product.id] = line;
           }
         }
       })
     );
-    // Keep the original line order.
     const ordered = {};
     for (const l of lines) if (next[l.product.id]) ordered[l.product.id] = next[l.product.id];
     replace(ordered);

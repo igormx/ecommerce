@@ -79,9 +79,7 @@ class HttpErrorHandlerTest extends TestCase
 
     public function testProductNotFoundMapsTo404ThroughHttpNotFoundException(): void
     {
-        // Action::__invoke converts ProductNotFoundException (a
-        // DomainRecordNotFoundException) into this before it ever reaches
-        // the error handler.
+        // Action::__invoke converts ProductNotFoundException into this.
         $result = $this->handle(new HttpNotFoundException(
             $this->createRequest('GET', '/products/1'),
             ProductNotFoundException::forId(1)->getMessage(),

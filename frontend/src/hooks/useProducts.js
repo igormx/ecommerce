@@ -10,9 +10,8 @@ export function parsePage(value) {
 }
 
 /**
- * Reads `q`, `category` and `page` from the URL and loads the matching
- * products. Uses search whenever the trimmed `q` or `category` is set, else
- * the plain list. Responses from superseded requests are ignored.
+ * Search is used when trimmed `q` or `category` is set.
+ * Superseded responses are ignored.
  */
 export default function useProducts() {
   const [params] = useSearchParams();

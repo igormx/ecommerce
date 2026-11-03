@@ -10,9 +10,6 @@ use App\Domain\Product\Exception\ProductNotFoundException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Log\LoggerInterface;
 
-/**
- * Full replace of a product's editable fields.
- */
 class UpdateProductAction extends Action
 {
     public function __construct(LoggerInterface $logger, private readonly ProductService $products)
@@ -25,7 +22,7 @@ class UpdateProductAction extends Action
         $id = $this->getIntArg('id');
         $input = ProductInput::fromUpdateBody($this->getJsonBody());
 
-        // Deactivated (soft-deleted) products cannot be edited; same 404 as ViewProductAction.
+        // Deactivated products 404, like View.
         if (!$this->products->get($id)->active) {
             throw ProductNotFoundException::forId($id);
         }

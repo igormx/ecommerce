@@ -9,19 +9,13 @@ use Respect\Validation\Exceptions\NestedValidationException;
 use Respect\Validation\Validatable;
 
 /**
- * Thin adapter over respect/validation: validates a flat array of fields
- * against a map of rules, collecting every failure instead of stopping at
- * the first one.
+ * Collects every failure instead of stopping at the first.
  */
 final class RequestValidator
 {
     /**
      * @param array<string, mixed> $data
-     * @param array<string, Validatable> $rules field => rule. Whether a
-     *     field is required, optional or nullable is expressed on the rule
-     *     itself (e.g. `v::optional(...)` for a field that may be absent or
-     *     blank, `v::nullable(...)` for one that may be explicitly null),
-     *     not by this method.
+     * @param array<string, Validatable> $rules field => rule
      * @return array<string, mixed> $data, once every rule has passed
      * @throws ValidationException field => message, for every failing rule
      *     and every unknown key

@@ -19,8 +19,7 @@ function RedirectToAdminEdit() {
   return <Navigate to={`/admin/products/${id}/edit`} replace />;
 }
 
-// Exported separately (without the BrowserRouter) so tests can render it
-// inside a MemoryRouter at a specific path.
+// Exported without the router so tests can use MemoryRouter.
 export function AppRoutes() {
   return (
     <Routes>
@@ -39,8 +38,7 @@ export function AppRoutes() {
   );
 }
 
-// Opt in to the v7 behaviors early so there's no warning noise and no
-// surprise when react-router-dom is eventually upgraded past ^6.
+// react-router v7 future flags.
 export const ROUTER_FUTURE_FLAGS = { v7_startTransition: true, v7_relativeSplatPath: true };
 
 export default function App() {

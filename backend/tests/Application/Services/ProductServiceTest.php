@@ -193,7 +193,7 @@ class ProductServiceTest extends TestCase
 
     public function testUpdateWithStaleVersionThrowsAndDoesNotSave(): void
     {
-        $this->repo->findById(7)->willReturn($this->product(7, 'SKU-7')); // stored version 1
+        $this->repo->findById(7)->willReturn($this->product(7, 'SKU-7'));
         $this->repo->save(Argument::any())->shouldNotBeCalled();
 
         $this->expectException(StaleProductException::class);

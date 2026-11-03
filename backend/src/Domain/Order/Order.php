@@ -7,8 +7,7 @@ namespace App\Domain\Order;
 use DateTimeImmutable;
 
 /**
- * Data-only, immutable Order entity. Maps to the `orders` table.
- * Money is represented as integer cents (`totalCents`).
+ * Money is integer cents.
  */
 final class Order
 {

@@ -9,10 +9,8 @@ import Spinner from './Spinner.jsx';
 const DEBOUNCE_MS = 300;
 
 /**
- * Shared search / category filter / pagination shell for the storefront and
- * the admin list. State lives in the URL query of the current route, so every
- * change stays within the view that rendered it. `children` is a render prop
- * `({ items, reload }) => node` that supplies the rows (and their actions).
+ * State lives in the URL query. `children` is a render prop
+ * `({ items, reload }) => node`.
  */
 export default function ProductBrowser({ title, actions = null, children }) {
   const [, setSearchParams] = useSearchParams();
@@ -44,12 +42,10 @@ export default function ProductBrowser({ title, actions = null, children }) {
     update({ q: trimmed, page: null });
   }
 
-  // Keep the box in sync when the URL changes from outside (back/forward).
   useEffect(() => {
     setInput(q);
   }, [q]);
 
-  // Debounced search as the user types.
   useEffect(() => {
     if (input.trim() === qRef.current) return undefined;
     const timer = setTimeout(() => commitQuery(input), DEBOUNCE_MS);
@@ -63,9 +59,7 @@ export default function ProductBrowser({ title, actions = null, children }) {
       (list) => {
         if (!cancelled) setCategories(Array.isArray(list) ? list : []);
       },
-      () => {
-        // The filter is optional; the list still works without it.
-      }
+      () => {}
     );
     return () => {
       cancelled = true;

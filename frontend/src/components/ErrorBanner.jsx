@@ -1,5 +1,4 @@
-// Renders an ApiError (or a plain message) as an alert. `aria-live` so
-// screen readers announce it when it appears after an async failure.
+// aria-live so screen readers announce async failures.
 export default function ErrorBanner({ error, message }) {
   const text = message || error?.description || 'Something went wrong. Please try again.';
 

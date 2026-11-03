@@ -11,9 +11,8 @@ use App\Domain\Product\Product;
 use App\Domain\Product\ProductRepositoryInterface;
 
 /**
- * In-memory ProductRepositoryInterface fake for tests that run the real Slim app.
- * Mirrors the MySQL implementation: findById/findBySku return inactive rows too,
- * while findAll/search return only active ones.
+ * Mirrors MySQL: findById/findBySku return inactive rows too, while
+ * findAll/search return only active ones.
  */
 class InMemoryProductRepository implements ProductRepositoryInterface
 {

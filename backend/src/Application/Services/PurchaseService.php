@@ -20,9 +20,7 @@ use DateTimeImmutable;
 
 class PurchaseService
 {
-    /** Maximum number of distinct products in one purchase. */
     public const MAX_LINES = 50;
-    /** Maximum quantity of a single product in one purchase. */
     public const MAX_QUANTITY = 1000;
 
     public function __construct(

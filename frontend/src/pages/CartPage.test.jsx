@@ -108,7 +108,7 @@ describe('CartPage', () => {
     const user = userEvent.setup();
     renderCart();
 
-    expect(screen.getByText('$59.97')).toBeInTheDocument(); // line total 3 x 19.99
+    expect(screen.getByText('$59.97')).toBeInTheDocument();
     expect(screen.getByText(/Total:/)).toHaveTextContent('$60.02');
     expect(screen.getByRole('link', { name: 'Cart (4)' })).toBeInTheDocument();
 

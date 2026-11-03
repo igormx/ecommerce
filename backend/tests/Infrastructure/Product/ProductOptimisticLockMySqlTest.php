@@ -46,7 +46,6 @@ class ProductOptimisticLockMySqlTest extends MySqlIntegrationTestCase
             $this->products->update($id, 'LOST-1', 'Renamed', null, null, 1000, 50, $loaded->version);
             $this->fail('Expected StaleProductException');
         } catch (StaleProductException) {
-            // expected
         }
         $fresh = $this->products->get($id);
         $this->assertSame(40, $fresh->stock);

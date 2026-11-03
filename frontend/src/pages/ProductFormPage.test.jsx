@@ -129,7 +129,7 @@ describe('ProductFormPage', () => {
       priceCents: 1999,
       stock: 3,
       weightKg: 1.5,
-      version: 4, // the version loaded with the form
+      version: 4,
     });
   });
 
@@ -169,7 +169,6 @@ describe('ProductFormPage', () => {
     await waitFor(() => expect(screen.getByLabelText('Stock')).toHaveValue('1'));
     expect(screen.queryByText(/This product changed since you opened it/)).not.toBeInTheDocument();
 
-    // The retry carries the reloaded version.
     fetchMock.mockImplementation((url, init = {}) =>
       (init.method ?? 'GET') === 'GET'
         ? json({ statusCode: 200, data: current })

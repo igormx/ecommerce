@@ -18,7 +18,7 @@ const MAX_WEIGHT_KG = 99999.999;
 
 const EMPTY = { sku: '', name: '', description: '', category: '', price: '', stock: '', weightKg: '' };
 
-// Form input name -> API body key, for mapping server `fields` onto inputs.
+// Input name -> API body key (maps server `fields` onto inputs).
 const SERVER_KEY = { price: 'priceCents' };
 const serverKey = (name) => SERVER_KEY[name] ?? name;
 
@@ -34,7 +34,6 @@ function toForm(product) {
   };
 }
 
-/** @returns {{ body?: object, errors: Record<string, string> }} keyed by input name */
 export function validate(form) {
   const errors = {};
   const sku = form.sku.trim();
@@ -101,7 +100,7 @@ export default function ProductFormPage({ mode }) {
   const [formError, setFormError] = useState(null);
   // Optimistic-lock token: the `version` of the product as loaded into the form.
   const [version, setVersion] = useState(null);
-  // True after the server rejected a save because the product changed since it was loaded.
+  // Set on a 409 stale-version rejection.
   const [stale, setStale] = useState(false);
   const [reloading, setReloading] = useState(false);
 
@@ -111,9 +110,7 @@ export default function ProductFormPage({ mode }) {
       (list) => {
         if (!cancelled) setCategories(Array.isArray(list) ? list : []);
       },
-      () => {
-        // Suggestions are optional.
-      }
+      () => {}
     );
     return () => {
       cancelled = true;

@@ -21,7 +21,7 @@ class DeactivateProductAction extends Action
     {
         $id = $this->getIntArg('id');
 
-        // An already-deactivated product is gone as far as the API is concerned (404, as in View).
+        // Already inactive: 404, like View.
         if (!$this->products->get($id)->active) {
             throw ProductNotFoundException::forId($id);
         }

@@ -11,9 +11,6 @@ use Respect\Validation\Validatable;
 use Respect\Validation\Validator as v;
 
 /**
- * The validated request body of the product write endpoints (create and
- * full-replace update), as typed values ready for ProductService.
- *
  * `description`, `category` and `weightKg` are nullable; an absent key is
  * treated like an explicit null. `version` is required on update only.
  */
@@ -50,8 +47,7 @@ final class ProductInput
     }
 
     /**
-     * Update body: the create fields plus the required `version` the client
-     * last read (optimistic concurrency).
+     * Create fields plus the `version` the client last read.
      *
      * @param array<array-key, mixed> $body
      * @throws ValidationException
