@@ -2,7 +2,7 @@
 
 A small e-commerce app: product CRUD, product search, and a "purchase" flow with a fake payment. Built for the LoanPro code challenge.
 
-> **Status:** the backend (domain, services and HTTP API) is done. The frontend is still to be built (see [Roadmap](#roadmap)).
+> **Status:** the backend (domain, services and HTTP API) and the frontend (product list, search, product form, cart and checkout) are done (see [Roadmap](#roadmap)).
 
 ## Stack
 
@@ -27,7 +27,9 @@ A small e-commerce app: product CRUD, product search, and a "purchase" flow with
 │   │   ├── init/            01-schema.sql, 02-seed.sql (run on first DB start)
 │   │   └── seed/            build_seed.py: generates 02-seed.sql from the CSV
 │   └── tests/
-├── frontend/                React app + nginx config
+├── frontend/                React app (Vite) + nginx config + Dockerfile
+│   └── src/                 api/ (fetch client), cart/ (context), components/,
+│                            hooks/, lib/ (money), pages/, styles.css
 ├── docker-compose.yaml      db + api + web
 ├── DATA_CLEANING_LOG.md     Every change made to the source CSV, with reasons
 └── LoanPro Code Challenge E-Commerce - ....csv   Source product data
@@ -70,8 +72,27 @@ composer test       # phpunit
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev     # Vite dev server on http://localhost:5173
+npm test        # Vitest + Testing Library (jsdom)
+npm run build   # production build into dist/
 ```
+
+Source layout in `frontend/src/`: `api/` (fetch client and endpoint modules), `cart/` (client-only cart in a Context, persisted to localStorage), `components/` (layout, table, pagination, error and spinner), `hooks/` (`useProducts`), `lib/` (money helpers; prices are integer cents), `pages/` (routes) and `styles.css`. Search and filter state lives in the URL query string.
+
+**Dev proxy.** The app calls the API at `/api`. In Docker, nginx serves that path; under `npm run dev` the Vite dev server proxies `/api` instead (see `frontend/vite.config.js`). The production build has no dev-proxy dependency. By default the proxy targets `http://localhost:8080` (the Docker stack) and forwards the path unchanged, since that nginx strips `/api` itself. Two variables adjust this:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_PROXY_TARGET` | `http://localhost:8080` | Where `/api` is proxied |
+| `VITE_API_PROXY_STRIP_PREFIX` | unset | Set to `1` to strip `/api` before forwarding, for targeting Slim directly |
+
+For example, with the backend running locally via `composer start`:
+
+```bash
+VITE_API_PROXY_TARGET=http://localhost:8080 VITE_API_PROXY_STRIP_PREFIX=1 npm run dev
+```
+
+(If `composer start` and Docker would both use 8080, change one of the ports.)
 
 ## Data
 
@@ -183,5 +204,5 @@ Every error uses the same envelope:
 - [x] `PaymentGateway` + fake implementation
 - [x] `PurchaseService` and `OrderRepository`
 - [x] API routes and actions (see [API](#api))
-- [ ] Frontend: product list, search, product form, checkout
+- [x] Frontend: product list, search, product form, checkout
 - [x] Backend tests (`make check` runs phpcs, phpstan and phpunit)
