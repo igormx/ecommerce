@@ -12,6 +12,8 @@ CSV_PATH = ROOT / "LoanPro Code Challenge E-Commerce - LoanPro Code Challenge E-
 SEED_PATH = ROOT / "backend/db/init/02-seed.sql"
 LOG_PATH = ROOT / "DATA_CLEANING_LOG.md"
 
+SUSPICIOUS_NAME = re.compile(r"<\s*script|<\s*/?\s*[a-z][^>]*>|DROP\s+TABLE|;\s*--", re.I)
+
 log = []  # (csv_line, sku, action, reason)
 
 
@@ -29,6 +31,10 @@ def clean(line, r):
         return None
     if not name:
         log.append((line, sku, "Dropped", "Product name is empty or whitespace only; name is required."))
+        return None
+
+    if SUSPICIOUS_NAME.search(name):
+        log.append((line, sku, "Dropped", "Suspicious product name (XSS/SQL injection test string); not loaded."))
         return None
 
     raw_price = r["price"].strip()
@@ -52,10 +58,6 @@ def clean(line, r):
     category = r["category"].strip() or None
     if category is None:
         log.append((line, sku, "Category '' -> NULL", "Category not provided."))
-
-    if re.search(r"<script|DROP TABLE", name, re.I):
-        log.append((line, sku, "Kept as plain text", "Suspicious name (XSS/SQL injection test string). Stored escaped, "
-                    "not altered; output must be HTML-escaped by the API/frontend and queries parameterized."))
 
     return dict(sku=sku, name=name, description=r["description"].strip() or None,
                 category=category, price=price, stock=stock, weight=weight, line=line)

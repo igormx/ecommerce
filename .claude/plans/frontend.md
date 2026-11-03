@@ -9,7 +9,7 @@ Delivered in five phases, run in order. Each phase ends with passing tests and s
 - nginx serves the build and forwards `/api/*` to PHP-FPM (prefix stripped). In the browser the app always calls relative `/api/...`, so there is no CORS or base-URL config in production.
 - `npm run dev` runs Vite on its own port, so `vite.config.js` needs a dev proxy for `/api` to reach the API (see Phase 1).
 - API contract and error envelope are documented in the README. Money is integer cents everywhere; dates are ISO 8601.
-- Seeded names include SQL/XSS test strings kept as plain text. React escapes text by default; never use `dangerouslySetInnerHTML`.
+- The seed no longer contains SQL/XSS test strings, but user-entered names can. React escapes text by default; never use `dangerouslySetInnerHTML`.
 
 ## API gaps to account for
 | Gap | Consequence | Handling |
@@ -108,7 +108,7 @@ Everything later copies the client, error handling and layout set here, so revie
 
 **Tests** (fetch mocked): initial load renders rows; typing a query calls search with `q` and resets to page 1; empty `q` and no category falls back to list; a category alone calls search; "page X of Y" comes from `meta.total` and Next is disabled on the last page; the category dropdown is populated from `/categories`; error shows `ErrorBanner`; a hostile name like `<script>alert(1)</script>` renders as text.
 
-**Done when**: against the real stack the 90 seeded products page correctly, search works, and the tests pass.
+**Done when**: against the real stack the 88 seeded products page correctly, search works, and the tests pass.
 
 ---
 

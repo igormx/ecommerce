@@ -16,7 +16,7 @@ Delivered in three phases, run in order. Each phase ends with passing tests and 
 ## Design decisions
 | Question | Decision | Why |
 |---|---|---|
-| Where does `total` go? | A new optional top-level **`meta`** object in the envelope: `{ "page": 1, "size": 20, "total": 90 }`. `data` stays a bare array. | Backwards compatible (existing consumers and tests keep working), no CORS `Expose-Headers` needed (a header like `X-Total-Count` would need it), and serialized only when set, like `error.fields`. |
+| Where does `total` go? | A new optional top-level **`meta`** object in the envelope: `{ "page": 1, "size": 20, "total": 88 }`. `data` stays a bare array. | Backwards compatible (existing consumers and tests keep working), no CORS `Expose-Headers` needed (a header like `X-Total-Count` would need it), and serialized only when set, like `error.fields`. |
 | Count in the same query? | No: a separate `COUNT(*)` with the identical `WHERE`. | Simpler than `SQL_CALC_FOUND_ROWS` (deprecated) or window functions; fine for the data size. The two reads are not atomic; an off-by-one under concurrent writes is acceptable. |
 | Does `total` include inactive products? | No, active only, same filter as the page query. | The list never shows inactive products. |
 | Service shape | Add `count()` and `countSearch()` next to `list()` and `search()`; keep the existing return types. | Does not break existing service tests or callers. Both count methods apply the same normalization as their page counterparts so the numbers always agree. |

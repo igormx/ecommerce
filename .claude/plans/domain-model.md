@@ -6,8 +6,8 @@ No routes, actions, or frontend yet.
 ## Existing context
 - Namespace `App\` -> `backend/src`. Layers: `Domain`, `Application`, `Infrastructure` (Infrastructure is empty).
 - Repository wiring goes in `backend/app/repositories.php` (currently commented out).
-- `products` table already exists (`backend/db/init/01-schema.sql`) and is seeded with 90 rows (`02-seed.sql`).
-- Seed data rules (see `DATA_CLEANING_LOG.md`): some products have NULL category or NULL weight; a few names are XSS/SQL-injection test strings kept as plain text (queries must be parameterized, output escaped).
+- `products` table already exists (`backend/db/init/01-schema.sql`) and is seeded with 88 rows (`02-seed.sql`).
+- Seed data rules (see `DATA_CLEANING_LOG.md`): some products have NULL category or NULL weight; the two XSS/SQL-injection test rows are dropped from the seed, but user-entered names can still contain such text (queries must be parameterized, output escaped).
 - `Domain/User` is a leftover from the skeleton; follow its shape (small class + repository interface + not-found exception).
 
 ## Entities (data only, no behavior)

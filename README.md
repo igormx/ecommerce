@@ -96,7 +96,7 @@ VITE_API_PROXY_TARGET=http://localhost:8080 VITE_API_PROXY_STRIP_PREFIX=1 npm ru
 
 ## Data
 
-`products` is seeded with **90 products** from the challenge CSV, which was downloaded on Friday, 2026-10-30. The CSV contained dirty data (currency symbols, `free` prices, negative stock, duplicate SKUs, empty rows, injection test strings), which is cleaned by `backend/db/seed/build_seed.py`. Every decision is recorded in [DATA_CLEANING_LOG.md](DATA_CLEANING_LOG.md).
+`products` is seeded with **88 products** from the challenge CSV, which was downloaded on Friday, 2026-10-30. The CSV contained dirty data (currency symbols, `free` prices, negative stock, duplicate SKUs, empty rows; two SQL/XSS injection test rows are dropped), which is cleaned by `backend/db/seed/build_seed.py`. Every decision is recorded in [DATA_CLEANING_LOG.md](DATA_CLEANING_LOG.md).
 
 To regenerate the seed:
 
@@ -104,7 +104,7 @@ To regenerate the seed:
 python3 backend/db/seed/build_seed.py
 ```
 
-Some seeded names are SQL/XSS test strings kept as plain text, so all queries must use bound parameters and all output must be escaped.
+The two SQL/XSS injection test rows in the CSV (XS-001, SQL-001) are dropped from the seed. User-entered products can still contain such text, so all queries must use bound parameters and all output must be escaped.
 
 ## Domain design
 
@@ -143,7 +143,7 @@ Unknown body keys are rejected.
 ```json
 { "statusCode": 200,
   "data": [ { "id": 1, "sku": "RS-001", "name": "Running Shoes" } ],
-  "meta": { "page": 1, "size": 20, "total": 90 } }
+  "meta": { "page": 1, "size": 20, "total": 88 } }
 ```
 
 A page past the end returns `data: []` with the same `total`. Other endpoints have no `meta` key. A blank or whitespace-only `q` counts as absent.
