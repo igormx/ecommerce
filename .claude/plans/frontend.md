@@ -58,9 +58,13 @@ frontend/src/
 | Path | Page |
 |---|---|
 | `/` | Redirect to `/products` |
-| `/products` | `ProductsPage` (`?q=`, `?category=`, `?page=` in the URL so state survives reload and is shareable) |
-| `/products/new` | `ProductFormPage` (create) |
-| `/products/:id/edit` | `ProductFormPage` (edit) |
+| `/products` | `ProductsPage`, shopper storefront: search, category, pagination, Add to cart; no Edit/Delete/New (`?q=`, `?category=`, `?page=` in the URL so state survives reload and is shareable) |
+| `/admin/products` | `AdminProductsPage`: same shared `ProductBrowser` (same URL state), with sku, Edit, Delete and New product; no Add to cart |
+| `/admin/products/new` | `ProductFormPage` (create); saving or cancelling returns to `/admin/products` |
+| `/admin/products/:id/edit` | `ProductFormPage` (edit) |
+| `/products/new`, `/products/:id/edit` | Redirect to the admin equivalents |
+
+There is no auth, so the storefront/admin split is UX only.
 | `/cart` | `CartPage` |
 | `/orders/:id` | `OrderResultPage` (reads `GET /orders/{id}`, so it works on reload) |
 | `*` | `NotFoundPage` |

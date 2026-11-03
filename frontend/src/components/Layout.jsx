@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useCart } from '../cart/CartContext.jsx';
 
 function navLinkClass({ isActive }) {
@@ -7,6 +7,7 @@ function navLinkClass({ isActive }) {
 
 export default function Layout({ children }) {
   const { totalQuantity: cartItemCount } = useCart();
+  const inAdmin = useLocation().pathname.startsWith('/admin');
 
   return (
     <div className="app-shell">
@@ -22,14 +23,22 @@ export default function Layout({ children }) {
             <NavLink to="/products" className={navLinkClass} end>
               Products
             </NavLink>
-            <NavLink to="/products/new" className={navLinkClass}>
-              New product
-            </NavLink>
             <NavLink to="/cart" className={navLinkClass}>
               Cart ({cartItemCount})
             </NavLink>
+            <NavLink to="/admin/products" className={navLinkClass}>
+              Admin
+            </NavLink>
           </nav>
         </div>
+        {inAdmin && (
+          <div className="admin-bar">
+            <div className="admin-bar__inner">
+              <strong>Admin section</strong>
+              <Link to="/products">Back to storefront</Link>
+            </div>
+          </div>
+        )}
       </header>
       <main id="main" className="app-main" tabIndex={-1}>{children}</main>
     </div>

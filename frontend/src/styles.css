@@ -360,3 +360,32 @@ textarea {
   border-color: var(--color-danger);
   background: var(--color-danger-bg);
 }
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.admin-bar {
+  background: var(--color-bg, #f3f4f6);
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-bar__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.875rem;
+}
+
+a.button {
+  text-decoration: none;
+  display: inline-block;
+}

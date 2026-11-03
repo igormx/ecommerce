@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useNavigate } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { ROUTER_FUTURE_FLAGS } from '../App.jsx';
 import { CartProvider } from '../cart/CartContext.jsx';
 import ProductsPage from './ProductsPage.jsx';
@@ -66,10 +66,37 @@ describe('ProductsPage', () => {
     expect(await screen.findByText('Product 1')).toBeInTheDocument();
     expect(screen.getByText('Product 2')).toBeInTheDocument();
     expect(screen.getAllByText('$19.99')).toHaveLength(2);
-    expect(screen.getByRole('link', { name: 'Edit Product 1' })).toHaveAttribute(
-      'href',
-      '/products/1/edit'
+  });
+
+  it('has no admin actions', async () => {
+    mockApi({ list: () => page([product(1)], 1) });
+    renderPage();
+    await screen.findByText('Product 1');
+
+    expect(screen.queryByRole('link', { name: /edit/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /delete/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /new product/i })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'SKU' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Add Product 1 to cart' })).toBeInTheDocument();
+  });
+
+  it('keeps search and paging on /products', async () => {
+    const user = userEvent.setup();
+    mockApi({ list: () => page([product(1)], 60) });
+    function Where() {
+      return <output data-testid="where">{useLocation().pathname + useLocation().search}</output>;
+    }
+    render(
+      <CartProvider>
+        <MemoryRouter initialEntries={['/products']} future={ROUTER_FUTURE_FLAGS}>
+          <ProductsPage />
+          <Where />
+        </MemoryRouter>
+      </CartProvider>
     );
+    await screen.findByText('Product 1');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByTestId('where')).toHaveTextContent('/products?page=2');
   });
 
   it('searches with q on Enter and resets to page 1', async () => {

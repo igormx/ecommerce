@@ -49,7 +49,20 @@ describe('routing', () => {
     await screen.findByText('No products match.');
 
     expect(screen.getByRole('link', { name: /^products$/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /new product/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /new product/i })).toBeNull();
     expect(screen.getByRole('link', { name: /cart/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin/products');
+    expect(screen.queryByText('Admin section')).toBeNull();
+  });
+
+  it('marks the admin context and links back to the storefront', async () => {
+    renderAt('/admin/products');
+    await screen.findByText('No products match.');
+
+    expect(screen.getByText('Admin section')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Back to storefront' })).toHaveAttribute('href', '/products');
+    expect(screen.getByRole('link', { name: /^products$/i })).toHaveAttribute('href', '/products');
+    expect(screen.getByRole('link', { name: /new product/i })).toBeInTheDocument();
   });
 });

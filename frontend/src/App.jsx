@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { CartProvider } from './cart/CartContext.jsx';
 import Layout from './components/Layout.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
+import AdminProductsPage from './pages/AdminProductsPage.jsx';
 import ProductsPage from './pages/ProductsPage.jsx';
 import ProductFormPage from './pages/ProductFormPage.jsx';
 import CartPage from './pages/CartPage.jsx';
@@ -13,6 +14,11 @@ function EditProductRoute() {
   return <ProductFormPage key={`edit-${id}`} mode="edit" />;
 }
 
+function RedirectToAdminEdit() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/products/${id}/edit`} replace />;
+}
+
 // Exported separately (without the BrowserRouter) so tests can render it
 // inside a MemoryRouter at a specific path.
 export function AppRoutes() {
@@ -20,8 +26,12 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/products" replace />} />
       <Route path="/products" element={<ProductsPage />} />
-      <Route path="/products/new" element={<ProductFormPage key="new" mode="create" />} />
-      <Route path="/products/:id/edit" element={<EditProductRoute />} />
+      <Route path="/products/new" element={<Navigate to="/admin/products/new" replace />} />
+      <Route path="/products/:id/edit" element={<RedirectToAdminEdit />} />
+      <Route path="/admin" element={<Navigate to="/admin/products" replace />} />
+      <Route path="/admin/products" element={<AdminProductsPage />} />
+      <Route path="/admin/products/new" element={<ProductFormPage key="new" mode="create" />} />
+      <Route path="/admin/products/:id/edit" element={<EditProductRoute />} />
       <Route path="/cart" element={<CartPage />} />
       <Route path="/orders/:id" element={<OrderResultPage />} />
       <Route path="*" element={<NotFoundPage />} />

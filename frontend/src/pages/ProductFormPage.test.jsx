@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { AppRoutes, ROUTER_FUTURE_FLAGS } from '../App.jsx';
 import ProductFormPage from './ProductFormPage.jsx';
 import { CartProvider } from '../cart/CartContext.jsx';
-import ProductsPage from './ProductsPage.jsx';
+import AdminProductsPage from './AdminProductsPage.jsx';
 
 function json(body, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(body), { status }));
@@ -49,9 +49,9 @@ function renderForm(entry, mode) {
   return render(
     <MemoryRouter initialEntries={[entry]} future={ROUTER_FUTURE_FLAGS}>
       <Routes>
-        <Route path="/products" element={<div>list page</div>} />
-        <Route path="/products/new" element={<ProductFormPage mode="create" />} />
-        <Route path="/products/:id/edit" element={<ProductFormPage mode={mode} />} />
+        <Route path="/admin/products" element={<div>list page</div>} />
+        <Route path="/admin/products/new" element={<ProductFormPage mode="create" />} />
+        <Route path="/admin/products/:id/edit" element={<ProductFormPage mode={mode} />} />
       </Routes>
     </MemoryRouter>
   );
@@ -71,7 +71,7 @@ describe('ProductFormPage', () => {
   it('create sends cents and null optionals, then navigates to the list', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi({ onWrite: () => json({ statusCode: 201, data: { id: 1 } }, 201) });
-    renderForm('/products/new', 'create');
+    renderForm('/admin/products/new', 'create');
     await fillCreate(user);
     await user.click(screen.getByRole('button', { name: 'Create product' }));
 
@@ -93,7 +93,7 @@ describe('ProductFormPage', () => {
   it('validates client-side without calling the API', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi({ onWrite: () => json({}, 500) });
-    renderForm('/products/new', 'create');
+    renderForm('/admin/products/new', 'create');
     await user.type(screen.getByLabelText('Price (USD)'), '1.999');
     await user.click(screen.getByRole('button', { name: 'Create product' }));
 
@@ -105,7 +105,7 @@ describe('ProductFormPage', () => {
   it('edit pre-fills and sends PUT', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi({ onWrite: () => json({ statusCode: 200, data: EXISTING }) });
-    renderForm('/products/7/edit', 'edit');
+    renderForm('/admin/products/7/edit', 'edit');
 
     expect(await screen.findByDisplayValue('Widget')).toBeInTheDocument();
     expect(screen.getByLabelText('Price (USD)')).toHaveValue('19.99');
@@ -147,7 +147,7 @@ describe('ProductFormPage', () => {
           400
         ),
     });
-    renderForm('/products/new', 'create');
+    renderForm('/admin/products/new', 'create');
     await fillCreate(user);
     await user.click(screen.getByRole('button', { name: 'Create product' }));
 
@@ -163,7 +163,7 @@ describe('ProductFormPage', () => {
       onWrite: () =>
         json({ statusCode: 409, error: { type: 'CONFLICT', description: 'Duplicate' } }, 409),
     });
-    renderForm('/products/new', 'create');
+    renderForm('/admin/products/new', 'create');
     await fillCreate(user);
     await user.click(screen.getByRole('button', { name: 'Create product' }));
 
@@ -180,7 +180,7 @@ describe('ProductFormPage', () => {
           resolve = () => r(new Response(JSON.stringify({ statusCode: 201, data: {} }), { status: 201 }));
         }),
     });
-    renderForm('/products/new', 'create');
+    renderForm('/admin/products/new', 'create');
     await fillCreate(user);
     await user.click(screen.getByRole('button', { name: 'Create product' }));
 
@@ -193,21 +193,52 @@ describe('ProductFormPage', () => {
     expect(await screen.findByText('list page')).toBeInTheDocument();
   });
 
+  it('cancel returns to the admin list', async () => {
+    const user = userEvent.setup();
+    mockApi({ onWrite: () => json({}, 500) });
+    renderForm('/admin/products/new', 'create');
+    await user.click(screen.getByRole('link', { name: 'Cancel' }));
+    expect(await screen.findByText('list page')).toBeInTheDocument();
+  });
+
   it('shows not-found for an unknown id on edit', async () => {
     mockApi({ product: null, onWrite: () => json({}, 500) });
-    renderForm('/products/999/edit', 'edit');
+    renderForm('/admin/products/999/edit', 'edit');
     expect(await screen.findByText(/Product not found/)).toBeInTheDocument();
   });
 });
 
-describe('ProductsPage delete', () => {
+describe('legacy form routes', () => {
+  it('redirects /products/new and /products/:id/edit to the admin routes', async () => {
+    mockApi({ onWrite: () => json({}, 500) });
+    const { unmount } = render(
+      <CartProvider>
+        <MemoryRouter initialEntries={['/products/new']} future={ROUTER_FUTURE_FLAGS}>
+          <AppRoutes />
+        </MemoryRouter>
+      </CartProvider>
+    );
+    expect(await screen.findByRole('heading', { name: 'New product' })).toBeInTheDocument();
+    unmount();
+    render(
+      <CartProvider>
+        <MemoryRouter initialEntries={['/products/7/edit']} future={ROUTER_FUTURE_FLAGS}>
+          <AppRoutes />
+        </MemoryRouter>
+      </CartProvider>
+    );
+    expect(await screen.findByDisplayValue('Widget')).toBeInTheDocument();
+  });
+});
+
+describe('AdminProductsPage delete', () => {
   const row = { id: 1, sku: 'S-1', name: 'Doomed', category: 'Books', priceCents: 100, stock: 1 };
 
   function renderList() {
     return render(
       <CartProvider>
-        <MemoryRouter initialEntries={['/products']} future={ROUTER_FUTURE_FLAGS}>
-          <ProductsPage />
+        <MemoryRouter initialEntries={['/admin/products']} future={ROUTER_FUTURE_FLAGS}>
+          <AdminProductsPage />
         </MemoryRouter>
       </CartProvider>
     );
@@ -287,14 +318,14 @@ describe('ProductsPage delete', () => {
       const navigate = useNavigate();
       return (
         <>
-          <button onClick={() => navigate('/products/new')}>to new</button>
-          <button onClick={() => navigate('/products/4/edit')}>to edit 4</button>
+          <button onClick={() => navigate('/admin/products/new')}>to new</button>
+          <button onClick={() => navigate('/admin/products/4/edit')}>to edit 4</button>
         </>
       );
     }
     render(
       <CartProvider>
-        <MemoryRouter initialEntries={['/products/3/edit']} future={ROUTER_FUTURE_FLAGS}>
+        <MemoryRouter initialEntries={['/admin/products/3/edit']} future={ROUTER_FUTURE_FLAGS}>
           <Nav />
           <AppRoutes />
         </MemoryRouter>

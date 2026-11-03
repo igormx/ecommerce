@@ -77,7 +77,9 @@ npm test        # Vitest + Testing Library (jsdom)
 npm run build   # production build into dist/
 ```
 
-Source layout in `frontend/src/`: `api/` (fetch client and endpoint modules), `cart/` (client-only cart in a Context, persisted to localStorage), `components/` (layout, table, pagination, error and spinner), `hooks/` (`useProducts`), `lib/` (money helpers; prices are integer cents), `pages/` (routes) and `styles.css`. Search and filter state lives in the URL query string.
+Source layout in `frontend/src/`: `api/` (fetch client and endpoint modules), `cart/` (client-only cart in a Context, persisted to localStorage), `components/` (layout, shared product browser, table, pagination, error and spinner), `hooks/` (`useProducts`), `lib/` (money helpers; prices are integer cents), `pages/` (routes) and `styles.css`. Search and filter state lives in the URL query string.
+
+Routes: `/products` is the shopper storefront (search, filter, add to cart); `/admin/products` is the admin list (edit, delete, new), with the form at `/admin/products/new` and `/admin/products/:id/edit` (the old `/products/new` and `/products/:id/edit` redirect there). There is no authentication, so the storefront/admin split is a UX separation only, not access control.
 
 **Dev proxy.** The app calls the API at `/api`. In Docker, nginx serves that path; under `npm run dev` the Vite dev server proxies `/api` instead (see `frontend/vite.config.js`). The production build has no dev-proxy dependency. By default the proxy targets `http://localhost:8080` (the Docker stack) and forwards the path unchanged, since that nginx strips `/api` itself. Two variables adjust this:
 

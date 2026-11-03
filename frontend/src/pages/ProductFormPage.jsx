@@ -156,7 +156,7 @@ export default function ProductFormPage({ mode }) {
     try {
       if (isEdit) await updateProduct(id, body);
       else await createProduct(body);
-      navigate('/products');
+      navigate('/admin/products');
     } catch (err) {
       setSubmitting(false);
       if (err?.type === 'VALIDATION_ERROR' && err.fields) {
@@ -197,7 +197,7 @@ export default function ProductFormPage({ mode }) {
       <section className="page">
         <h1>{title}</h1>
         <p role="alert">Product not found. It may have been deleted.</p>
-        <Link to="/products">Back to products</Link>
+        <Link to="/admin/products">Back to products</Link>
       </section>
     );
   }
@@ -207,7 +207,7 @@ export default function ProductFormPage({ mode }) {
       <section className="page">
         <h1>{title}</h1>
         <ErrorBanner error={loadError} />
-        <Link to="/products">Back to products</Link>
+        <Link to="/admin/products">Back to products</Link>
       </section>
     );
   }
@@ -253,7 +253,7 @@ export default function ProductFormPage({ mode }) {
           <button type="submit" className="button" disabled={submitting}>
             {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create product'}
           </button>
-          <Link to="/products">Cancel</Link>
+          <Link to="/admin/products">Cancel</Link>
         </div>
       </form>
     </section>
