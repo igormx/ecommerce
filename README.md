@@ -2,40 +2,21 @@
 
 A small e-commerce app: product CRUD, product search, and a "purchase" flow with a fake payment. Built for the LoanPro code challenge.
 
-> **Status:** the backend (domain, services and HTTP API) and the frontend (product list, search, product form, cart and checkout) are done (see [Roadmap](#roadmap)).
+> **Status:** the backend (domain, services and HTTP API) and the frontend (product list, search, product form, cart and checkout) are done (see [Roadmap](#roadmap)). The HTTP endpoints are listed in [API](#api), with copy-paste examples in the [Quick reference](#quick-reference).
 
-## Stack
+## Contents
 
-| Part | Tech |
-|---|---|
-| Backend | PHP 8.3 (php-fpm), Slim 4, PHP-DI, Monolog |
-| Database | MySQL 8.4 |
-| Frontend | React 18 + Vite, served by nginx |
-| Tooling | PHPUnit, PHPStan, PHPCS, Docker Compose |
+- [Quick start](#quick-start)
+- [Stack](#stack)
+- [Project layout](#project-layout)
+- [Architecture](#architecture): [domain design](#domain-design), [design decisions](#design-decisions), [known limitations](#known-limitations)
+- [API](#api): [endpoints](#endpoints), [quick reference](#quick-reference), [pagination](#pagination), [purchases](#purchases), [concurrent edits](#concurrent-edits), [errors](#errors)
+- [Frontend](#frontend): [app pages](#app-pages), [development](#frontend-development), [dev proxy](#dev-proxy)
+- [Backend development](#backend-development)
+- [Data](#data)
+- [Roadmap](#roadmap)
 
-## Project layout
-
-```
-.
-├── backend/                 Slim API
-│   ├── app/                 Settings, DI wiring, routes, middleware
-│   ├── src/
-│   │   ├── Domain/          Entities, repository interfaces, domain exceptions
-│   │   ├── Application/     Actions, handlers, middleware, settings
-│   │   └── Infrastructure/  Persistence implementations (PDO / MySQL)
-│   ├── db/
-│   │   ├── init/            01-schema.sql, 02-seed.sql (run on first DB start)
-│   │   └── seed/            build_seed.py: generates 02-seed.sql from the CSV
-│   └── tests/
-├── frontend/                React app (Vite) + nginx config + Dockerfile
-│   └── src/                 api/ (fetch client), cart/ (context), components/,
-│                            hooks/, lib/ (money), pages/, styles.css
-├── docker-compose.yaml      db + api + web
-├── DATA_CLEANING_LOG.md     Every change made to the source CSV, with reasons
-└── LoanPro Code Challenge E-Commerce - ....csv   Source product data
-```
-
-## Running with Docker
+## Quick start
 
 ```bash
 docker compose up --build
@@ -58,72 +39,56 @@ Configuration is read from environment variables, all optional:
 docker compose down -v && docker compose up --build
 ```
 
-## Running the backend locally
+## Stack
 
-```bash
-cd backend
-composer install
-composer start      # php -S localhost:8080 -t public
-composer test       # phpunit
-```
-
-From the repo root, `make test` runs the suite in a container. The tests that need real MySQL parallelism (`backend/tests/Concurrency`, `ProductOptimisticLockMySqlTest`) are skipped unless `TEST_DB_HOST` is set. `make test-concurrency` starts a throwaway `mysql:8.4` container (`ecommerce-test-db`, tmpfs storage, also published on `127.0.0.1:3310`, separate from the dev stack) and runs them against its `ecommerce_test` database; `make test-db-down` removes it. The tests drop and recreate tables, so they refuse any database whose name does not end in `_test`. To use your own server: `TEST_DB_HOST=... TEST_DB_PORT=... TEST_DB_NAME=something_test TEST_DB_USER=... TEST_DB_PASSWORD=... vendor/bin/phpunit` (needs `pdo_mysql`).
-
-## Frontend development
-
-```bash
-cd frontend
-npm install
-npm run dev     # Vite dev server on http://localhost:5173
-npm test        # Vitest + Testing Library (jsdom)
-npm run build   # production build into dist/
-```
-
-Source layout in `frontend/src/`: `api/` (fetch client and endpoint modules), `cart/` (client-only cart in a Context, persisted to localStorage), `components/` (layout, shared product browser, table, pagination, error and spinner), `hooks/` (`useProducts`), `lib/` (money helpers; prices are integer cents), `pages/` (routes) and `styles.css`. Search and filter state lives in the URL query string.
-
-### App pages
-
-| Path | Page |
+| Part | Tech |
 |---|---|
-| `/` | Redirects to `/products` |
-| `/products` | Storefront: search, category filter, pagination, Add to cart (`?q=`, `?category=`, `?page=`) |
-| `/cart` | Cart and checkout |
-| `/orders/:id` | Order result (PAID or FAILED); works on reload |
-| `/admin` | Redirects to `/admin/products` |
-| `/admin/products` | Admin list: SKU, Edit, Delete, New product (same `?q=`, `?category=`, `?page=`) |
-| `/admin/products/new` | Create product |
-| `/admin/products/:id/edit` | Edit product |
+| Backend | PHP 8.3 (php-fpm), Slim 4, PHP-DI, Monolog |
+| Database | MySQL 8.4 |
+| Frontend | React 18 + Vite, served by nginx |
+| Tooling | PHPUnit, PHPStan, PHPCS, Vitest, Docker Compose |
 
-The old `/products/new` and `/products/:id/edit` redirect to the admin paths. Anything else shows a not-found page. Under Docker these are served at `http://localhost:8080<path>` and deep links work on reload. There is no authentication, so the storefront/admin split is a UX separation only, not access control.
+## Project layout
 
-**Dev proxy.** The app calls the API at `/api`. In Docker, nginx serves that path; under `npm run dev` the Vite dev server proxies `/api` instead (see `frontend/vite.config.js`). The production build has no dev-proxy dependency. By default the proxy targets `http://localhost:8080` (the Docker stack) and forwards the path unchanged, since that nginx strips `/api` itself. Two variables adjust this:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `VITE_API_PROXY_TARGET` | `http://localhost:8080` | Where `/api` is proxied |
-| `VITE_API_PROXY_STRIP_PREFIX` | unset | Set to `1` to strip `/api` before forwarding, for targeting Slim directly |
-
-For example, with the backend running locally via `composer start`:
-
-```bash
-VITE_API_PROXY_TARGET=http://localhost:8080 VITE_API_PROXY_STRIP_PREFIX=1 npm run dev
+```
+.
+├── backend/                 Slim API
+│   ├── Dockerfile           composer stage, dev/test image (PHP CLI), PHP-FPM runtime
+│   ├── app/                 Settings, DI wiring, routes, middleware
+│   ├── src/
+│   │   ├── Domain/          Entities, repository interfaces, domain exceptions
+│   │   ├── Application/     Actions, handlers, middleware, settings
+│   │   └── Infrastructure/  Persistence implementations (PDO / MySQL)
+│   ├── db/
+│   │   ├── init/            01-schema.sql, 02-seed.sql (run on first DB start)
+│   │   ├── migrations/      Idempotent SQL for existing databases
+│   │   └── seed/            build_seed.py: generates 02-seed.sql from the CSV
+│   └── tests/               Unit and endpoint tests; Concurrency/ needs real MySQL
+├── frontend/                React app (Vite), served by nginx
+│   ├── Dockerfile           Multi-stage build (npm ci, vite build, nginx)
+│   ├── nginx.conf           Serves the SPA (index.html fallback), forwards /api to PHP-FPM
+│   ├── vite.config.js       Dev proxy for /api and the Vitest config
+│   └── src/
+│       ├── main.jsx, App.jsx  Entry point and routes
+│       ├── api/             client.js (request, ApiError), products, categories, purchases
+│       ├── cart/            CartContext: cart reducer, localStorage persistence
+│       ├── components/      Layout, ProductBrowser (search, filter, pagination),
+│       │                    ProductTable, Pagination, ErrorBanner, FieldError, Spinner
+│       ├── hooks/           useProducts (list/search state kept in the URL)
+│       ├── lib/             money.js (integer cents <-> display)
+│       ├── pages/           ProductsPage (storefront), AdminProductsPage,
+│       │                    ProductFormPage (create/edit), CartPage,
+│       │                    OrderResultPage, NotFoundPage
+│       └── styles.css       Global styles (CSS variables); tests sit next to the code
+├── Makefile                 Backend tooling in a container: test, stan, cs, check, test-concurrency
+├── docker-compose.yaml      db + api + web
+├── DATA_CLEANING_LOG.md     Every change made to the source CSV, with reasons
+└── LoanPro Code Challenge E-Commerce - ....csv   Source product data
 ```
 
-(If `composer start` and Docker would both use 8080, change one of the ports.)
+## Architecture
 
-## Data
-
-`products` is seeded with **88 products** from the challenge CSV, which was downloaded on Friday, 2026-10-30. The CSV contained dirty data (currency symbols, `free` prices, negative stock, duplicate SKUs, empty rows; two SQL/XSS injection test rows are dropped), which is cleaned by `backend/db/seed/build_seed.py`. Every decision is recorded in [DATA_CLEANING_LOG.md](DATA_CLEANING_LOG.md).
-
-To regenerate the seed:
-
-```bash
-python3 backend/db/seed/build_seed.py
-```
-
-The two SQL/XSS injection test rows in the CSV (XS-001, SQL-001) are dropped from the seed. User-entered products can still contain such text, so all queries must use bound parameters and all output must be escaped.
-
-## Domain design
+### Domain design
 
 Anemic entities with one repository per entity and a service layer.
 
@@ -135,7 +100,7 @@ Anemic entities with one repository per entity and a service layer.
 
 The full plan is in `.claude/plans/domain-model.md`.
 
-## Design decisions
+### Design decisions
 
 What was chosen, what was considered instead, and why.
 
@@ -166,8 +131,11 @@ What was chosen, what was considered instead, and why.
 
 All routes are served under `/api` by nginx (the prefix is stripped before Slim, so the routes below are registered without it). Requests and responses are JSON. Money is always integer cents (`priceCents`, `totalCents`, `unitPriceCents`). Dates are ISO 8601.
 
+### Endpoints
+
 | Method | Path | Success | Notes |
 |---|---|---|---|
+| GET | `/` | 200 | placeholder route that returns the text `Hello world!`; handy as a liveness check |
 | GET | `/products` | 200 | `page` (default 1, max 1000000), `size` (default 20, max 100); response has `meta` |
 | GET | `/products/search` | 200 | `q` (max 255) and `category` (max 100, exact match); **at least one of the two is required**, otherwise 400 with `fields.q`; `page`, `size` as above; response has `meta` |
 | GET | `/categories` | 200 | distinct categories of active products, sorted, as a list of strings |
@@ -175,20 +143,40 @@ All routes are served under `/api` by nginx (the prefix is stripped before Slim,
 | POST | `/products` | 201 | body: `sku`, `name`, `priceCents`, `stock`, optional `description`, `category`, `weightKg` |
 | PUT | `/products/{id}` | 200 | full replace; same body as create **plus a required `version`** (see [Concurrent edits](#concurrent-edits)) |
 | DELETE | `/products/{id}` | 204 | soft delete (deactivate) |
-| POST | `/purchases` | 201 | see below |
+| POST | `/purchases` | 201 | see [Purchases](#purchases) |
 | GET | `/orders/{id}` | 200 | an order as returned by `POST /purchases` |
 
 Unknown body keys are rejected.
 
-### Concurrent edits
+### Quick reference
 
-Every product carries an integer `version` (starts at 1). It is bumped by every write to the row: an edit (`PUT`), a soft delete, and the stock decrement of each purchase. `PUT /products/{id}` must send the `version` the client last read; the update only applies if that is still the stored version (`UPDATE ... WHERE id = ? AND version = ?`). Otherwise nothing is written and the API returns `409` with `error.type` `CONFLICT`, the description "Product was modified by someone else; reload and try again." and `error.fields.version` set. A duplicate SKU is also `409 CONFLICT` but has **no** `fields`, which is how clients tell the two apart. An unknown or deactivated id is still `404` (checked before the version), and a missing or non-integer `version` is `400` with `fields.version`.
+With the Docker stack up, every endpoint can be tried like this (`/api` is the prefix nginx adds in front of the routes above):
 
-This prevents the lost update where an admin opens a product at stock 50, customers buy 10, and the admin's save would silently put stock back to 50: the save is rejected and the admin reloads.
+```bash
+API=http://localhost:8080/api
 
-**Compatibility:** `version` is required on `PUT`, so API clients written against the earlier documented body (create fields only) now get `400` until they send it. It is required deliberately: an optional version would leave the lost update possible for any client that omits it. `POST` rejects `version` as an unknown key. Take it from `GET /products/{id}` (or any product in a list).
+curl "$API/"                                   # GET /
+curl "$API/products?page=1&size=20"            # list, paginated (meta.total)
+curl "$API/products/search?q=shoes"            # search by text
+curl "$API/products/search?category=Footwear"  # filter by category alone
+curl "$API/categories"                         # distinct categories
+curl "$API/products/1"                         # one product (includes its version)
 
-Existing databases need the column once (idempotent, no data loss): `docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < backend/db/migrations/001-add-product-version.sql`. Fresh volumes get it from `backend/db/init/01-schema.sql`.
+curl -X POST "$API/products" -H 'Content-Type: application/json' \
+  -d '{"sku":"DEMO-1","name":"Demo","priceCents":1999,"stock":10}'
+
+curl -X PUT "$API/products/1" -H 'Content-Type: application/json' \
+  -d '{"sku":"RS-001","name":"Running Shoes","priceCents":9499,"stock":120,"version":1}'   # use the product's current version
+
+curl -X DELETE "$API/products/1"               # soft delete
+
+curl -X POST "$API/purchases" -H 'Content-Type: application/json' \
+  -d '{"items":[{"productId":1,"quantity":2}]}'
+
+curl "$API/orders/1"                           # an order from a purchase
+```
+
+The `PUT` and `DELETE` examples change the data in your database. Use a product you created yourself, with its current `version`.
 
 ### Pagination
 
@@ -204,13 +192,7 @@ A page past the end returns `data: []` with the same `total`. Other endpoints ha
 
 ### Purchases
 
-```bash
-curl -X POST http://localhost:8080/api/purchases \
-  -H 'Content-Type: application/json' \
-  -d '{"items":[{"productId":1,"quantity":2}]}'
-```
-
-`items` has 1 to 50 entries, each with a unique integer `productId` >= 1 and an integer `quantity` from 1 to 1000. The response is `201` with the order, whose `status` is `PAID` or `FAILED`:
+`POST /purchases` takes `items` with 1 to 50 entries, each with a unique integer `productId` >= 1 and an integer `quantity` from 1 to 1000 (example in the [Quick reference](#quick-reference)). The response is `201` with the order, whose `status` is `PAID` or `FAILED`:
 
 ```json
 { "statusCode": 201,
@@ -221,6 +203,16 @@ curl -X POST http://localhost:8080/api/purchases \
 ```
 
 A declined payment is **not** an HTTP error: the order is returned with `status: "FAILED"`, and stock is left untouched. With the fake gateway, a total of exactly 666 cents (6.66) is always declined.
+
+### Concurrent edits
+
+Every product carries an integer `version` (starts at 1). It is bumped by every write to the row: an edit (`PUT`), a soft delete, and the stock decrement of each purchase. `PUT /products/{id}` must send the `version` the client last read; the update only applies if that is still the stored version (`UPDATE ... WHERE id = ? AND version = ?`). Otherwise nothing is written and the API returns `409` with `error.type` `CONFLICT`, the description "Product was modified by someone else; reload and try again." and `error.fields.version` set. A duplicate SKU is also `409 CONFLICT` but has **no** `fields`, which is how clients tell the two apart. An unknown or deactivated id is still `404` (checked before the version), and a missing or non-integer `version` is `400` with `fields.version`.
+
+This prevents the lost update where an admin opens a product at stock 50, customers buy 10, and the admin's save would silently put stock back to 50: the save is rejected and the admin reloads.
+
+**Compatibility:** `version` is required on `PUT`, so API clients written against the earlier documented body (create fields only) now get `400` until they send it. It is required deliberately: an optional version would leave the lost update possible for any client that omits it. `POST` rejects `version` as an unknown key. Take it from `GET /products/{id}` (or any product in a list).
+
+Existing databases need the column once (idempotent, no data loss): `docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < backend/db/migrations/001-add-product-version.sql`. Fresh volumes get it from `backend/db/init/01-schema.sql`.
 
 ### Errors
 
@@ -250,6 +242,81 @@ Every error uses the same envelope:
 | 409 | `INSUFFICIENT_STOCK` | Not enough stock for a purchase line |
 | 503 | `SERVICE_UNAVAILABLE` | A purchase hit a database deadlock or lock-wait timeout on all 3 attempts (the API retries transient errors itself, with a short jittered backoff, before giving up). Nothing was charged or decremented; send the same request again. Has a `Retry-After: 1` header |
 | 500 | `SERVER_ERROR` | Unexpected failure |
+
+## Frontend
+
+### App pages
+
+| Path | Page |
+|---|---|
+| `/` | Redirects to `/products` |
+| `/products` | Storefront: search, category filter, pagination, Add to cart (`?q=`, `?category=`, `?page=`) |
+| `/cart` | Cart and checkout |
+| `/orders/:id` | Order result (PAID or FAILED); works on reload |
+| `/admin` | Redirects to `/admin/products` |
+| `/admin/products` | Admin list: SKU, Edit, Delete, New product (same `?q=`, `?category=`, `?page=`) |
+| `/admin/products/new` | Create product |
+| `/admin/products/:id/edit` | Edit product |
+
+The old `/products/new` and `/products/:id/edit` redirect to the admin paths. Anything else shows a not-found page. Under Docker these are served at `http://localhost:8080<path>` and deep links work on reload. Search and filter state lives in the URL query string. There is no authentication, so the storefront/admin split is a UX separation only, not access control.
+
+### Frontend development
+
+```bash
+cd frontend
+npm install
+npm run dev     # Vite dev server on http://localhost:5173
+npm test        # Vitest + Testing Library (jsdom)
+npm run build   # production build into dist/
+```
+
+The source layout is in [Project layout](#project-layout). Prices are integer cents everywhere; the cart is client-only, kept in a Context and persisted to `localStorage`.
+
+### Dev proxy
+
+The app calls the API at `/api`. In Docker, nginx serves that path; under `npm run dev` the Vite dev server proxies `/api` instead (see `frontend/vite.config.js`). The production build has no dev-proxy dependency. By default the proxy targets `http://localhost:8080` (the Docker stack) and forwards the path unchanged, since that nginx strips `/api` itself. Two variables adjust this:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VITE_API_PROXY_TARGET` | `http://localhost:8080` | Where `/api` is proxied |
+| `VITE_API_PROXY_STRIP_PREFIX` | unset | Set to `1` to strip `/api` before forwarding, for targeting Slim directly |
+
+For example, with the backend running locally via `composer start`:
+
+```bash
+VITE_API_PROXY_TARGET=http://localhost:8080 VITE_API_PROXY_STRIP_PREFIX=1 npm run dev
+```
+
+(If `composer start` and Docker would both use 8080, change one of the ports.)
+
+## Backend development
+
+### Running locally
+
+```bash
+cd backend
+composer install
+composer start      # php -S localhost:8080 -t public
+composer test       # phpunit
+```
+
+### Tests and checks
+
+From the repo root, `make test` runs the suite in a container, and `make check` runs phpcs, phpstan and phpunit.
+
+The tests that need real MySQL parallelism (`backend/tests/Concurrency`, `ProductOptimisticLockMySqlTest`) are skipped unless `TEST_DB_HOST` is set. `make test-concurrency` starts a throwaway `mysql:8.4` container (`ecommerce-test-db`, tmpfs storage, also published on `127.0.0.1:3310`, separate from the dev stack) and runs them against its `ecommerce_test` database; `make test-db-down` removes it. The tests drop and recreate tables, so they refuse any database whose name does not end in `_test`. To use your own server: `TEST_DB_HOST=... TEST_DB_PORT=... TEST_DB_NAME=something_test TEST_DB_USER=... TEST_DB_PASSWORD=... vendor/bin/phpunit` (needs `pdo_mysql`).
+
+## Data
+
+`products` is seeded with **88 products** from the challenge CSV, which was downloaded on Friday, 2026-10-30. The CSV contained dirty data (currency symbols, `free` prices, negative stock, duplicate SKUs, empty rows, and two SQL/XSS injection test rows, `XS-001` and `SQL-001`, which are dropped). It is cleaned by `backend/db/seed/build_seed.py`, and every decision is recorded in [DATA_CLEANING_LOG.md](DATA_CLEANING_LOG.md).
+
+To regenerate the seed:
+
+```bash
+python3 backend/db/seed/build_seed.py
+```
+
+User-entered products can still contain injection-style text, so all queries must use bound parameters and all output must be escaped.
 
 ## Roadmap
 
