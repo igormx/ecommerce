@@ -67,6 +67,8 @@ composer start      # php -S localhost:8080 -t public
 composer test       # phpunit
 ```
 
+From the repo root, `make test` runs the suite in a container. The tests that need real MySQL parallelism (`backend/tests/Concurrency`, `ProductOptimisticLockMySqlTest`) are skipped unless `TEST_DB_HOST` is set. `make test-concurrency` starts a throwaway `mysql:8.4` container (`ecommerce-test-db`, tmpfs storage, also published on `127.0.0.1:3310`, separate from the dev stack) and runs them against its `ecommerce_test` database; `make test-db-down` removes it. The tests drop and recreate tables, so they refuse any database whose name does not end in `_test`. To use your own server: `TEST_DB_HOST=... TEST_DB_PORT=... TEST_DB_NAME=something_test TEST_DB_USER=... TEST_DB_PASSWORD=... vendor/bin/phpunit` (needs `pdo_mysql`).
+
 ## Frontend development
 
 ```bash
@@ -144,12 +146,22 @@ All routes are served under `/api` by nginx (the prefix is stripped before Slim,
 | GET | `/categories` | 200 | distinct categories of active products, sorted, as a list of strings |
 | GET | `/products/{id}` | 200 | 404 if unknown or deactivated |
 | POST | `/products` | 201 | body: `sku`, `name`, `priceCents`, `stock`, optional `description`, `category`, `weightKg` |
-| PUT | `/products/{id}` | 200 | full replace; same body as create |
+| PUT | `/products/{id}` | 200 | full replace; same body as create **plus a required `version`** (see [Concurrent edits](#concurrent-edits)) |
 | DELETE | `/products/{id}` | 204 | soft delete (deactivate) |
 | POST | `/purchases` | 201 | see below |
 | GET | `/orders/{id}` | 200 | an order as returned by `POST /purchases` |
 
 Unknown body keys are rejected.
+
+### Concurrent edits
+
+Every product carries an integer `version` (starts at 1). It is bumped by every write to the row: an edit (`PUT`), a soft delete, and the stock decrement of each purchase. `PUT /products/{id}` must send the `version` the client last read; the update only applies if that is still the stored version (`UPDATE ... WHERE id = ? AND version = ?`). Otherwise nothing is written and the API returns `409` with `error.type` `CONFLICT`, the description "Product was modified by someone else; reload and try again." and `error.fields.version` set. A duplicate SKU is also `409 CONFLICT` but has **no** `fields`, which is how clients tell the two apart. An unknown or deactivated id is still `404` (checked before the version), and a missing or non-integer `version` is `400` with `fields.version`.
+
+This prevents the lost update where an admin opens a product at stock 50, customers buy 10, and the admin's save would silently put stock back to 50: the save is rejected and the admin reloads.
+
+**Compatibility:** `version` is required on `PUT`, so API clients written against the earlier documented body (create fields only) now get `400` until they send it. It is required deliberately: an optional version would leave the lost update possible for any client that omits it. `POST` rejects `version` as an unknown key. Take it from `GET /products/{id}` (or any product in a list).
+
+Existing databases need the column once (idempotent, no data loss): `docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < backend/db/migrations/001-add-product-version.sql`. Fresh volumes get it from `backend/db/init/01-schema.sql`.
 
 ### Pagination
 
@@ -207,7 +219,7 @@ Every error uses the same envelope:
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | Malformed JSON, wrong types, unknown keys, bad route/query params, business validation (e.g. negative price) |
 | 404 | `RESOURCE_NOT_FOUND` | Unknown product or order, or a purchase referencing an unknown or deactivated product |
-| 409 | `CONFLICT` | Duplicate SKU |
+| 409 | `CONFLICT` | Duplicate SKU (no `fields`), or a stale `version` on `PUT /products/{id}` (`fields.version` set) |
 | 409 | `INSUFFICIENT_STOCK` | Not enough stock for a purchase line |
 | 500 | `SERVER_ERROR` | Unexpected failure |
 

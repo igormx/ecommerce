@@ -23,7 +23,7 @@ class UpdateProductAction extends Action
     protected function action(): Response
     {
         $id = $this->getIntArg('id');
-        $input = ProductInput::fromBody($this->getJsonBody());
+        $input = ProductInput::fromUpdateBody($this->getJsonBody());
 
         // Deactivated (soft-deleted) products cannot be edited; same 404 as ViewProductAction.
         if (!$this->products->get($id)->active) {
@@ -38,6 +38,7 @@ class UpdateProductAction extends Action
             $input->category,
             $input->priceCents,
             $input->stock,
+            (int) $input->version,
             $input->weightKg,
         );
 

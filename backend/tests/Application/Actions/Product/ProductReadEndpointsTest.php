@@ -76,6 +76,7 @@ class ProductReadEndpointsTest extends TestCase
             'priceCents' => 1999,
             'stock' => 5,
             'weightKg' => 1.5,
+            'version' => 1,
             'createdAt' => '2024-01-01T10:00:00+00:00',
             'updatedAt' => '2024-01-02T11:30:00+00:00',
         ], $result['body']['data']);

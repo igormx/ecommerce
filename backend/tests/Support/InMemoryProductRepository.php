@@ -6,6 +6,7 @@ namespace Tests\Support;
 
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\ProductNotFoundException;
+use App\Domain\Product\Exception\StaleProductException;
 use App\Domain\Product\Product;
 use App\Domain\Product\ProductRepositoryInterface;
 
@@ -81,6 +82,15 @@ class InMemoryProductRepository implements ProductRepositoryInterface
         $id = $product->id ?? $this->nextId;
         $this->nextId = max($this->nextId, $id + 1);
 
+        // Mirrors MySQL: updates are conditional on the stored version and bump it.
+        $version = $product->version;
+        if ($product->id !== null && isset($this->products[$id])) {
+            if ($this->products[$id]->version !== $product->version) {
+                throw new StaleProductException($id);
+            }
+            $version = $product->version + 1;
+        }
+
         $saved = new Product(
             $id,
             $product->sku,
@@ -93,6 +103,7 @@ class InMemoryProductRepository implements ProductRepositoryInterface
             $product->active,
             $product->createdAt,
             $product->updatedAt,
+            $version,
         );
         $this->products[$id] = $saved;
 
@@ -114,6 +125,7 @@ class InMemoryProductRepository implements ProductRepositoryInterface
             false,
             $p->createdAt,
             $p->updatedAt,
+            $p->version + 1,
         );
     }
 
@@ -154,6 +166,7 @@ class InMemoryProductRepository implements ProductRepositoryInterface
             $p->active,
             $p->createdAt,
             $p->updatedAt,
+            $p->version + 1,
         );
 
         return true;

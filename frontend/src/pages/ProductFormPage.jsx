@@ -99,6 +99,11 @@ export default function ProductFormPage({ mode }) {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
+  // Optimistic-lock token: the `version` of the product as loaded into the form.
+  const [version, setVersion] = useState(null);
+  // True after the server rejected a save because the product changed since it was loaded.
+  const [stale, setStale] = useState(false);
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +130,7 @@ export default function ProductFormPage({ mode }) {
       (product) => {
         if (cancelled) return;
         setForm(toForm(product));
+        setVersion(product.version);
         setLoading(false);
       },
       (err) => {
@@ -143,18 +149,36 @@ export default function ProductFormPage({ mode }) {
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  async function handleReload() {
+    setReloading(true);
+    try {
+      const product = await getProduct(id);
+      setForm(toForm(product));
+      setVersion(product.version);
+      setStale(false);
+      setFieldErrors({});
+      setFormError(null);
+    } catch (err) {
+      if (err?.status === 404 || err?.type === 'RESOURCE_NOT_FOUND') setNotFound(true);
+      else setFormError(err);
+    } finally {
+      setReloading(false);
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     if (submitting) return;
 
     setFormError(null);
+    setStale(false);
     const { body, errors } = validate(form);
     setFieldErrors(errors);
     if (!body) return;
 
     setSubmitting(true);
     try {
-      if (isEdit) await updateProduct(id, body);
+      if (isEdit) await updateProduct(id, { ...body, version });
       else await createProduct(body);
       navigate('/admin/products');
     } catch (err) {
@@ -171,6 +195,10 @@ export default function ProductFormPage({ mode }) {
         }
         setFieldErrors(mapped);
         if (!matched) setFormError(err);
+      } else if (err?.type === 'CONFLICT' && err.fields?.version) {
+        // Stale version: someone else (an edit or a purchase) changed the product. Not a SKU problem.
+        setFieldErrors({});
+        setStale(true);
       } else if (err?.type === 'CONFLICT') {
         setFieldErrors({ sku: 'SKU already exists' });
       } else if (err?.status === 404 || err?.type === 'RESOURCE_NOT_FOUND') {
@@ -235,6 +263,17 @@ export default function ProductFormPage({ mode }) {
   return (
     <section className="page">
       <h1>{title}</h1>
+      {stale && (
+        <div className="error-banner" role="alert">
+          <p>
+            <strong>This product changed since you opened it.</strong> Your changes were not saved. Reload to see
+            the latest values (stock may have changed because of a purchase), then re-apply your edits.
+          </p>
+          <button type="button" className="button" onClick={handleReload} disabled={reloading}>
+            {reloading ? 'Reloading…' : 'Reload'}
+          </button>
+        </div>
+      )}
       {formError && <ErrorBanner error={formError} />}
       <form className="product-form" onSubmit={handleSubmit} noValidate>
         {field('sku', 'SKU', { type: 'text', required: true, autoComplete: 'off' })}

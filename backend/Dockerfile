@@ -9,7 +9,8 @@ RUN composer dump-autoload --no-dev --optimize
 FROM php:8.3-cli AS dev
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends git unzip \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-install pdo_mysql
 WORKDIR /app
 
 FROM php:8.3-fpm-alpine

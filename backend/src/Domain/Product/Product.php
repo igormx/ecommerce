@@ -24,6 +24,8 @@ final class Product
         public readonly bool $active,
         public readonly DateTimeImmutable $createdAt,
         public readonly DateTimeImmutable $updatedAt,
+        /** Optimistic-lock counter: bumped by every write to the row (edits and stock decrements). */
+        public readonly int $version = 1,
     ) {
     }
 }

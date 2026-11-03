@@ -10,6 +10,7 @@ use App\Application\Services\Exception\InvalidPurchaseException;
 use App\Application\Services\Exception\ValidationException;
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\InsufficientStockException;
+use App\Domain\Product\Exception\StaleProductException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Slim\Exception\HttpBadRequestException;
 use Slim\Exception\HttpException;
@@ -42,6 +43,14 @@ class HttpErrorHandler extends SlimErrorHandler
         } elseif ($exception instanceof InvalidPurchaseException) {
             $statusCode = 400;
             $error = new ActionError(ActionError::VALIDATION_ERROR, $exception->getMessage());
+        } elseif ($exception instanceof StaleProductException) {
+            // Same CONFLICT type as a duplicate SKU; `fields.version` tells them apart.
+            $statusCode = 409;
+            $error = new ActionError(
+                ActionError::CONFLICT,
+                $exception->getMessage(),
+                ['version' => $exception->getMessage()]
+            );
         } elseif ($exception instanceof DuplicateSkuException) {
             $statusCode = 409;
             $error = new ActionError(ActionError::CONFLICT, $exception->getMessage());

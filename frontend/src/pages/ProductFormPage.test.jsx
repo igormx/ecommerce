@@ -20,6 +20,7 @@ const EXISTING = {
   priceCents: 1999,
   stock: 3,
   weightKg: 1.5,
+  version: 4,
 };
 
 // `onWrite(method, url, body)` returns the response promise for POST/PUT/DELETE.
@@ -128,7 +129,70 @@ describe('ProductFormPage', () => {
       priceCents: 1999,
       stock: 3,
       weightKg: 1.5,
+      version: 4, // the version loaded with the form
     });
+  });
+
+  it('on a stale-version 409 shows the banner and Reload refetches and refills the form', async () => {
+    const user = userEvent.setup();
+    let current = EXISTING;
+    const fetchMock = vi.fn((url, init = {}) => {
+      const method = init.method ?? 'GET';
+      if (url === '/api/categories') return json({ statusCode: 200, data: [] });
+      if (method === 'GET') return json({ statusCode: 200, data: current });
+      return json(
+        {
+          statusCode: 409,
+          error: {
+            type: 'CONFLICT',
+            description: 'Product was modified by someone else; reload and try again.',
+            fields: { version: 'Product was modified by someone else; reload and try again.' },
+          },
+        },
+        409
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderForm('/admin/products/7/edit', 'edit');
+    expect(await screen.findByDisplayValue('Widget')).toBeInTheDocument();
+
+    // A customer buys 2 and the version moves on while the form is open.
+    current = { ...EXISTING, stock: 1, version: 5 };
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText(/This product changed since you opened it/)).toBeInTheDocument();
+    expect(screen.queryByText('SKU already exists')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('SKU')).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText('Stock')).toHaveValue('3');
+
+    await user.click(screen.getByRole('button', { name: 'Reload' }));
+    await waitFor(() => expect(screen.getByLabelText('Stock')).toHaveValue('1'));
+    expect(screen.queryByText(/This product changed since you opened it/)).not.toBeInTheDocument();
+
+    // The retry carries the reloaded version.
+    fetchMock.mockImplementation((url, init = {}) =>
+      (init.method ?? 'GET') === 'GET'
+        ? json({ statusCode: 200, data: current })
+        : json({ statusCode: 200, data: { ...current, version: 6 } })
+    );
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('list page')).toBeInTheDocument();
+    const puts = writes(fetchMock);
+    expect(JSON.parse(puts[puts.length - 1][1].body)).toMatchObject({ stock: 1, version: 5 });
+  });
+
+  it('keeps showing a duplicate SKU on the sku field when editing (CONFLICT without fields.version)', async () => {
+    const user = userEvent.setup();
+    mockApi({
+      onWrite: () =>
+        json({ statusCode: 409, error: { type: 'CONFLICT', description: 'A product with sku "AB-1" already exists.' } }, 409),
+    });
+    renderForm('/admin/products/7/edit', 'edit');
+    await screen.findByDisplayValue('Widget');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('SKU already exists')).toBeInTheDocument();
+    expect(screen.queryByText(/This product changed since you opened it/)).not.toBeInTheDocument();
   });
 
   it('shows server field errors next to the inputs', async () => {

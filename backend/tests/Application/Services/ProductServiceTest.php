@@ -8,6 +8,7 @@ use App\Application\Services\Exception\ValidationException;
 use App\Application\Services\ProductService;
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\ProductNotFoundException;
+use App\Domain\Product\Exception\StaleProductException;
 use App\Domain\Product\Product;
 use App\Domain\Product\ProductRepositoryInterface;
 use DateTimeImmutable;
@@ -109,7 +110,7 @@ class ProductServiceTest extends TestCase
         $this->repo->save(Argument::any())->shouldNotBeCalled();
 
         $this->expectException(ValidationException::class);
-        $this->service->update(7, str_repeat('s', 33), 'N', null, null, 1, 1);
+        $this->service->update(7, str_repeat('s', 33), 'N', null, null, 1, 1, 1);
     }
 
     public function testLimitsAreInclusive(): void
@@ -178,7 +179,7 @@ class ProductServiceTest extends TestCase
                 && $p->createdAt === $existing->createdAt
         ))->willReturn($existing)->shouldBeCalledOnce();
 
-        $this->service->update(7, 'SKU-7', 'New', null, null, 500, 2);
+        $this->service->update(7, 'SKU-7', 'New', null, null, 500, 2, 1);
     }
 
     public function testUpdateRejectsSkuOwnedByAnotherProduct(): void
@@ -187,7 +188,25 @@ class ProductServiceTest extends TestCase
         $this->repo->findBySku('TAKEN')->willReturn($this->product(8, 'TAKEN'));
 
         $this->expectException(DuplicateSkuException::class);
-        $this->service->update(7, 'TAKEN', 'New', null, null, 500, 2);
+        $this->service->update(7, 'TAKEN', 'New', null, null, 500, 2, 1);
+    }
+
+    public function testUpdateWithStaleVersionThrowsAndDoesNotSave(): void
+    {
+        $this->repo->findById(7)->willReturn($this->product(7, 'SKU-7')); // stored version 1
+        $this->repo->save(Argument::any())->shouldNotBeCalled();
+
+        $this->expectException(StaleProductException::class);
+        $this->service->update(7, 'SKU-7', 'New', null, null, 500, 50, 0);
+    }
+
+    public function testUpdateSavesWithTheExpectedVersion(): void
+    {
+        $this->repo->findById(7)->willReturn($this->product(7, 'SKU-7'));
+        $this->repo->save(Argument::that(fn (Product $p): bool => $p->version === 1))
+            ->willReturn($this->product(7, 'SKU-7'))->shouldBeCalledOnce();
+
+        $this->service->update(7, 'SKU-7', 'New', null, null, 500, 2, 1);
     }
 
     public function testUpdateMissingProductThrowsNotFound(): void
@@ -195,7 +214,7 @@ class ProductServiceTest extends TestCase
         $this->repo->findById(99)->willThrow(ProductNotFoundException::forId(99));
 
         $this->expectException(ProductNotFoundException::class);
-        $this->service->update(99, 'X', 'N', null, null, 1, 1);
+        $this->service->update(99, 'X', 'N', null, null, 1, 1, 1);
     }
 
     public function testDeactivateDelegates(): void

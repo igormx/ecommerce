@@ -6,6 +6,7 @@ namespace Tests\Infrastructure\Product;
 
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\ProductNotFoundException;
+use App\Domain\Product\Exception\StaleProductException;
 use App\Domain\Product\Product;
 use App\Infrastructure\Product\MySqlProductRepository;
 use DateTimeImmutable;
@@ -54,7 +55,7 @@ class MySqlProductRepositoryTest extends TestCase
         return array_merge([
             'id' => '1', 'sku' => 'SKU-1', 'name' => 'Widget', 'description' => 'Desc', 'category' => 'Cat',
             'price' => '19.99', 'stock' => '5', 'weight_kg' => '1.500', 'active' => '1',
-            'created_at' => '2024-01-01 00:00:00', 'updated_at' => '2024-01-02 00:00:00',
+            'created_at' => '2024-01-01 00:00:00', 'updated_at' => '2024-01-02 00:00:00', 'version' => '3',
         ], $overrides);
     }
 
@@ -478,10 +479,11 @@ class MySqlProductRepositoryTest extends TestCase
     {
         $updateBinds = [];
         $update = $this->stmt($updateBinds);
+        $update->rowCount()->willReturn(1);
         $selectBinds = [];
         $select = $this->stmt($selectBinds);
         $select->fetch(PDO::FETCH_ASSOC)->willReturn($this->row(['id' => '4']));
-        $this->pdo->prepare(Argument::containingString('UPDATE products SET sku = ?'))
+        $this->pdo->prepare(Argument::containingString('version = version + 1 WHERE id = ? AND version = ?'))
             ->willReturn($update->reveal())->shouldBeCalledOnce();
         $this->pdo->prepare(Argument::containingString('SELECT'))->willReturn($select->reveal());
         $this->pdo->lastInsertId()->shouldNotBeCalled();
@@ -489,14 +491,29 @@ class MySqlProductRepositoryTest extends TestCase
         $saved = $this->repo->save($this->product(4));
 
         $this->assertSame(4, $saved->id);
-        $this->assertCount(9, $updateBinds);
+        $this->assertSame(3, $saved->version);
+        $this->assertCount(10, $updateBinds);
         $this->assertSame([9, 4, PDO::PARAM_INT], $updateBinds[8]);
+        $this->assertSame([10, 1, PDO::PARAM_INT], $updateBinds[9]); // the version the caller read
+    }
+
+    public function testSaveUpdateWithStaleVersionThrowsStale(): void
+    {
+        $binds = [];
+        $update = $this->stmt($binds);
+        $update->rowCount()->willReturn(0);
+        $this->pdo->prepare(Argument::containingString('UPDATE'))->willReturn($update->reveal());
+        $this->pdo->prepare(Argument::containingString('SELECT'))->shouldNotBeCalled();
+
+        $this->expectException(StaleProductException::class);
+        $this->repo->save($this->product(4));
     }
 
     public function testSaveUpdateOfMissingRowThrowsNotFound(): void
     {
         $binds = [];
         $update = $this->stmt($binds);
+        $update->rowCount()->willReturn(1);
         $selectBinds = [];
         $select = $this->stmt($selectBinds);
         $select->fetch(PDO::FETCH_ASSOC)->willReturn(false);
@@ -567,7 +584,7 @@ class MySqlProductRepositoryTest extends TestCase
         $updateBinds = [];
         $update = $this->stmt($updateBinds);
         $this->pdo->prepare(Argument::containingString('SELECT'))->willReturn($select->reveal());
-        $this->pdo->prepare('UPDATE products SET active = 0 WHERE id = ?')
+        $this->pdo->prepare('UPDATE products SET active = 0, version = version + 1 WHERE id = ?')
             ->willReturn($update->reveal())->shouldBeCalledOnce();
 
         $this->repo->deactivate(1);
@@ -602,7 +619,9 @@ class MySqlProductRepositoryTest extends TestCase
         $binds = [];
         $stmt = $this->stmt($binds);
         $stmt->rowCount()->willReturn($rowCount);
-        $this->pdo->prepare(Argument::containingString('SET stock = stock - ? WHERE id = ? AND stock >= ?'))
+        $this->pdo->prepare(Argument::containingString(
+            'SET stock = stock - ?, version = version + 1 WHERE id = ? AND stock >= ?'
+        ))
             ->willReturn($stmt->reveal());
 
         $this->assertSame($expected, $this->repo->decrementStock(8, 3));

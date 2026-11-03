@@ -38,7 +38,11 @@ export async function createProduct(body) {
   return data;
 }
 
-/** Full replace: same body as `createProduct`. */
+/**
+ * Full replace: same body as `createProduct` plus the required `version` of the
+ * product as last read (from `getProduct`). If the product changed since, the
+ * API answers 409 CONFLICT with `fields.version` set; the caller should reload.
+ */
 export async function updateProduct(id, body) {
   const { data } = await request('PUT', `/products/${encodeURIComponent(id)}`, body);
   return data;

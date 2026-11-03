@@ -26,6 +26,7 @@ final class ProductResource
             'priceCents' => $product->priceCents,
             'stock' => $product->stock,
             'weightKg' => $product->weightKg,
+            'version' => $product->version,
             'createdAt' => $product->createdAt->format(DateTimeInterface::ATOM),
             'updatedAt' => $product->updatedAt->format(DateTimeInterface::ATOM),
         ];

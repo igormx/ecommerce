@@ -7,6 +7,7 @@ namespace App\Application\Services;
 use App\Application\Services\Exception\ValidationException;
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\ProductNotFoundException;
+use App\Domain\Product\Exception\StaleProductException;
 use App\Domain\Product\Product;
 use App\Domain\Product\ProductRepositoryInterface;
 use DateTimeImmutable;
@@ -29,6 +30,8 @@ class ProductService
     public const MAX_STOCK = 4_294_967_295;
     /** DECIMAL(8,3) UNSIGNED. */
     public const MAX_WEIGHT_KG = 99999.999;
+    /** INT UNSIGNED. */
+    public const MAX_VERSION = 4_294_967_295;
 
     public function __construct(private readonly ProductRepositoryInterface $products)
     {
@@ -117,9 +120,12 @@ class ProductService
     }
 
     /**
-     * Full update of the editable fields.
+     * Full update of the editable fields, guarded by optimistic concurrency:
+     * $expectedVersion is the `version` the caller last read; if the row has
+     * changed since (another edit or a purchase), nothing is written.
      *
      * @throws ProductNotFoundException
+     * @throws StaleProductException
      * @throws ValidationException
      * @throws DuplicateSkuException
      */
@@ -131,9 +137,13 @@ class ProductService
         ?string $category,
         int $priceCents,
         int $stock,
+        int $expectedVersion,
         ?float $weightKg = null,
     ): Product {
         $existing = $this->products->findById($id);
+        if ($existing->version !== $expectedVersion) {
+            throw new StaleProductException($id);
+        }
 
         $sku = trim($sku);
         $name = trim($name);
@@ -157,6 +167,7 @@ class ProductService
             $existing->active,
             $existing->createdAt,
             new DateTimeImmutable(),
+            $expectedVersion,
         ));
     }
 

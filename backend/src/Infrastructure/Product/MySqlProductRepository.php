@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Product;
 
 use App\Domain\Product\Exception\DuplicateSkuException;
+use App\Domain\Product\Exception\StaleProductException;
 use App\Domain\Product\Money;
 use App\Domain\Product\Product;
 use App\Domain\Product\Exception\ProductNotFoundException;
@@ -17,7 +18,7 @@ use PDOStatement;
 class MySqlProductRepository implements ProductRepositoryInterface
 {
     private const COLUMNS = 'id, sku, name, description, category, CAST(price AS CHAR) AS price, stock, '
-        . 'CAST(weight_kg AS CHAR) AS weight_kg, active, created_at, updated_at';
+        . 'CAST(weight_kg AS CHAR) AS weight_kg, active, created_at, updated_at, version';
 
     public function __construct(private readonly PDO $pdo)
     {
@@ -106,7 +107,7 @@ class MySqlProductRepository implements ProductRepositoryInterface
         // Existence check first: rowCount() is 0 when the product is already inactive.
         $this->findById($id);
 
-        $stmt = $this->pdo->prepare('UPDATE products SET active = 0 WHERE id = ?');
+        $stmt = $this->pdo->prepare('UPDATE products SET active = 0, version = version + 1 WHERE id = ?');
         $stmt->bindValue(1, $id, PDO::PARAM_INT);
         $stmt->execute();
     }
@@ -196,7 +197,7 @@ class MySqlProductRepository implements ProductRepositoryInterface
     public function decrementStock(int $productId, int $quantity): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ? AND active = 1'
+            'UPDATE products SET stock = stock - ?, version = version + 1 WHERE id = ? AND stock >= ? AND active = 1'
         );
         $stmt->bindValue(1, $quantity, PDO::PARAM_INT);
         $stmt->bindValue(2, $productId, PDO::PARAM_INT);
@@ -222,11 +223,17 @@ class MySqlProductRepository implements ProductRepositoryInterface
     {
         $stmt = $this->pdo->prepare(
             'UPDATE products SET sku = ?, name = ?, description = ?, category = ?, price = ?, '
-            . 'stock = ?, weight_kg = ?, active = ? WHERE id = ?'
+            . 'stock = ?, weight_kg = ?, active = ?, version = version + 1 WHERE id = ? AND version = ?'
         );
         $this->bindWritable($stmt, $product);
         $stmt->bindValue(9, $product->id, PDO::PARAM_INT);
+        $stmt->bindValue(10, $product->version, PDO::PARAM_INT);
         $stmt->execute();
+
+        // The row exists (callers check), so no match means the version moved on.
+        if ($stmt->rowCount() === 0) {
+            throw new StaleProductException((int) $product->id);
+        }
     }
 
     private function bindWritable(PDOStatement $stmt, Product $product): void
@@ -284,6 +291,7 @@ class MySqlProductRepository implements ProductRepositoryInterface
             (bool) $row['active'],
             new DateTimeImmutable((string) $row['created_at']),
             new DateTimeImmutable((string) $row['updated_at']),
+            (int) $row['version'],
         );
     }
 }

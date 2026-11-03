@@ -15,7 +15,7 @@ use Respect\Validation\Validator as v;
  * full-replace update), as typed values ready for ProductService.
  *
  * `description`, `category` and `weightKg` are nullable; an absent key is
- * treated like an explicit null.
+ * treated like an explicit null. `version` is required on update only.
  */
 final class ProductInput
 {
@@ -27,6 +27,7 @@ final class ProductInput
         public readonly int $priceCents,
         public readonly int $stock,
         public readonly ?float $weightKg,
+        public readonly ?int $version = null,
     ) {
     }
 
@@ -49,10 +50,22 @@ final class ProductInput
     }
 
     /**
+     * Update body: the create fields plus the required `version` the client
+     * last read (optimistic concurrency).
+     *
      * @param array<array-key, mixed> $body
      * @throws ValidationException
      */
-    public static function fromBody(array $body): self
+    public static function fromUpdateBody(array $body): self
+    {
+        return self::fromBody($body, true);
+    }
+
+    /**
+     * @param array<array-key, mixed> $body
+     * @throws ValidationException
+     */
+    public static function fromBody(array $body, bool $withVersion = false): self
     {
         // The length limits apply to the trimmed value, which is what gets stored.
         foreach (['sku', 'name'] as $field) {
@@ -61,7 +74,11 @@ final class ProductInput
             }
         }
 
-        $data = (new RequestValidator())->validate($body, self::rules());
+        $rules = self::rules();
+        if ($withVersion) {
+            $rules['version'] = v::intType()->between(1, ProductService::MAX_VERSION);
+        }
+        $data = (new RequestValidator())->validate($body, $rules);
 
         return new self(
             $data['sku'],
@@ -71,6 +88,7 @@ final class ProductInput
             $data['priceCents'],
             $data['stock'],
             isset($data['weightKg']) ? (float) $data['weightKg'] : null,
+            $withVersion ? $data['version'] : null,
         );
     }
 }

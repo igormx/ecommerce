@@ -6,6 +6,7 @@ namespace App\Domain\Product;
 
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\ProductNotFoundException;
+use App\Domain\Product\Exception\StaleProductException;
 
 interface ProductRepositoryInterface
 {
@@ -42,7 +43,11 @@ interface ProductRepositoryInterface
      * Inserts the product if it has no id, or updates the existing row
      * otherwise. Returns the persisted product (with its id populated).
      *
+     * An update is conditional on `$product->version` still being the stored
+     * version, and bumps it.
+     *
      * @throws DuplicateSkuException
+     * @throws StaleProductException
      */
     public function save(Product $product): Product;
 
@@ -75,7 +80,7 @@ interface ProductRepositoryInterface
 
     /**
      * Atomically decrements stock:
-     * UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ? AND active = 1.
+     * UPDATE products SET stock = stock - ?, version = version + 1 WHERE id = ? AND stock >= ? AND active = 1.
      * Returns true iff a row was affected. Does not manage transactions; the
      * caller controls them.
      */

@@ -58,6 +58,14 @@ class ProductWriteEndpointsTest extends TestCase
     }
 
     /**
+     * @return array<string, mixed> validBody() plus the `version` an edit form would have loaded
+     */
+    private function updateBody(int $version = 1): array
+    {
+        return $this->validBody() + ['version' => $version];
+    }
+
+    /**
      * @param array<array-key, mixed>|null $body
      * @return array{status: int, body: array, raw: string}
      */
@@ -272,7 +280,7 @@ class ProductWriteEndpointsTest extends TestCase
 
     public function testUpdateReplacesProduct(): void
     {
-        $body = $this->validBody();
+        $body = $this->updateBody();
         $body['description'] = null;
         $body['category'] = null;
         $body['weightKg'] = null;
@@ -291,9 +299,80 @@ class ProductWriteEndpointsTest extends TestCase
         $this->assertSame('2024-01-01T10:00:00+00:00', $data['createdAt']);
     }
 
+    public function testUpdateBumpsVersionAndReturnsIt(): void
+    {
+        $result = $this->send('PUT', '/products/1', $this->updateBody(1));
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame(2, $result['body']['data']['version']);
+        $this->assertSame(2, $this->repo->findById(1)->version);
+    }
+
+    public function testStaleUpdateIs409ConflictAndLeavesProductUntouched(): void
+    {
+        $this->assertSame(200, $this->send('PUT', '/products/1', $this->updateBody(1))['status']);
+        $body = $this->updateBody(1); // second editor still holds version 1
+        $body['name'] = 'Stale name';
+        $body['stock'] = 50;
+
+        $result = $this->send('PUT', '/products/1', $body);
+
+        $this->assertSame(409, $result['status']);
+        $this->assertSame(ActionError::CONFLICT, $result['body']['error']['type']);
+        $this->assertSame(['version'], array_keys($result['body']['error']['fields']));
+        $this->assertStringContainsString('modified by someone else', $result['body']['error']['description']);
+        $this->assertSame('Wrench', $this->repo->findById(1)->name);
+        $this->assertSame(10, $this->repo->findById(1)->stock);
+    }
+
+    public function testPurchaseBetweenReadAndPutInvalidatesTheStalePut(): void
+    {
+        $loadedVersion = $this->repo->findById(1)->version;
+        $this->assertTrue($this->repo->decrementStock(1, 2)); // a customer buys 2
+        $body = $this->updateBody($loadedVersion);
+        $body['stock'] = 5; // admin's absolute number, from before the purchase
+
+        $result = $this->send('PUT', '/products/1', $body);
+
+        $this->assertSame(409, $result['status']);
+        $this->assertSame(3, $this->repo->findById(1)->stock);
+    }
+
+    public function testUpdateDuplicateSkuConflictHasNoVersionField(): void
+    {
+        $body = $this->updateBody();
+        $body['sku'] = 'SAW-1';
+
+        $result = $this->send('PUT', '/products/1', $body);
+
+        $this->assertSame(409, $result['status']);
+        $this->assertArrayNotHasKey('fields', $result['body']['error']);
+    }
+
+    public function testUpdateWithoutVersionIs400(): void
+    {
+        $result = $this->send('PUT', '/products/1', $this->validBody());
+
+        $this->assertSame(400, $result['status']);
+        $this->assertArrayHasKey('version', $result['body']['error']['fields']);
+    }
+
+    public function testUpdateUnknownIdIs404EvenWithStaleVersion(): void
+    {
+        $this->assertSame(404, $this->send('PUT', '/products/999', $this->updateBody(7))['status']);
+    }
+
+    public function testCreateRejectsVersion(): void
+    {
+        $result = $this->send('POST', '/products', $this->updateBody());
+
+        $this->assertSame(400, $result['status']);
+        $this->assertArrayHasKey('version', $result['body']['error']['fields']);
+    }
+
     public function testUpdateKeepingOwnSkuIsAllowed(): void
     {
-        $body = $this->validBody();
+        $body = $this->updateBody();
         $body['sku'] = 'HAM-1';
 
         $this->assertSame(200, $this->send('PUT', '/products/1', $body)['status']);
@@ -301,7 +380,7 @@ class ProductWriteEndpointsTest extends TestCase
 
     public function testUpdateDuplicateSkuIs409(): void
     {
-        $body = $this->validBody();
+        $body = $this->updateBody();
         $body['sku'] = 'SAW-1';
 
         $result = $this->send('PUT', '/products/1', $body);
@@ -313,7 +392,7 @@ class ProductWriteEndpointsTest extends TestCase
 
     public function testUpdateUnknownIdIs404(): void
     {
-        $result = $this->send('PUT', '/products/999', $this->validBody());
+        $result = $this->send('PUT', '/products/999', $this->updateBody());
 
         $this->assertSame(404, $result['status']);
         $this->assertSame(ActionError::RESOURCE_NOT_FOUND, $result['body']['error']['type']);
@@ -321,7 +400,7 @@ class ProductWriteEndpointsTest extends TestCase
 
     public function testUpdateInactiveProductIs404(): void
     {
-        $result = $this->send('PUT', '/products/3', $this->validBody());
+        $result = $this->send('PUT', '/products/3', $this->updateBody());
 
         $this->assertSame(404, $result['status']);
         $this->assertSame(ActionError::RESOURCE_NOT_FOUND, $result['body']['error']['type']);
@@ -333,7 +412,7 @@ class ProductWriteEndpointsTest extends TestCase
      */
     public function testUpdateAndDeleteInvalidIdIs400(string $path): void
     {
-        $this->assertSame(400, $this->send('PUT', $path, $this->validBody())['status']);
+        $this->assertSame(400, $this->send('PUT', $path, $this->updateBody())['status']);
         $this->assertSame(400, $this->send('DELETE', $path)['status']);
     }
 
@@ -360,6 +439,7 @@ class ProductWriteEndpointsTest extends TestCase
             'name' => '',
             'priceCents' => 1.5,
             'stock' => 1,
+            'version' => 1,
             'bogus' => true,
         ]);
 
@@ -372,7 +452,7 @@ class ProductWriteEndpointsTest extends TestCase
 
     public function testUpdateMissingFieldIs400BecauseItIsAFullReplace(): void
     {
-        $body = $this->validBody();
+        $body = $this->updateBody();
         unset($body['stock']);
 
         $result = $this->send('PUT', '/products/1', $body);
