@@ -18,8 +18,11 @@ class ListProductsAction extends Action
 
     protected function action(): Response
     {
-        $products = $this->products->list($this->getPage(), $this->getSize());
+        $page = $this->getPage();
+        $size = $this->getSize();
+        $products = $this->products->list($page, $size);
+        $total = $this->products->count();
 
-        return $this->respondWithData(ProductResource::collection($products));
+        return $this->respondWithPage(ProductResource::collection($products), $page, $size, $total);
     }
 }

@@ -17,14 +17,24 @@ class ActionPayload implements JsonSerializable
 
     private ?ActionError $error;
 
+    /**
+     * @var array|null extra response metadata, e.g. pagination info
+     */
+    private ?array $meta;
+
+    /**
+     * @param array|null $meta
+     */
     public function __construct(
         int $statusCode = 200,
         $data = null,
-        ?ActionError $error = null
+        ?ActionError $error = null,
+        ?array $meta = null
     ) {
         $this->statusCode = $statusCode;
         $this->data = $data;
         $this->error = $error;
+        $this->meta = $meta;
     }
 
     public function getStatusCode(): int
@@ -45,6 +55,14 @@ class ActionPayload implements JsonSerializable
         return $this->error;
     }
 
+    /**
+     * @return array|null
+     */
+    public function getMeta()
+    {
+        return $this->meta;
+    }
+
     #[\ReturnTypeWillChange]
     public function jsonSerialize(): array
     {
@@ -56,6 +74,10 @@ class ActionPayload implements JsonSerializable
             $payload['data'] = $this->data;
         } elseif ($this->error !== null) {
             $payload['error'] = $this->error;
+        }
+
+        if ($this->meta !== null) {
+            $payload['meta'] = $this->meta;
         }
 
         return $payload;

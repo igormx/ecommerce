@@ -212,6 +212,19 @@ abstract class Action
         return $this->respond($payload);
     }
 
+    /**
+     * Like respondWithData(), but also sets `meta.page`, `meta.size` and
+     * `meta.total`, for paginated list/search endpoints.
+     *
+     * @param array|object|null $data
+     */
+    protected function respondWithPage($data, int $page, int $size, int $total, int $statusCode = 200): Response
+    {
+        $payload = new ActionPayload($statusCode, $data, null, ['page' => $page, 'size' => $size, 'total' => $total]);
+
+        return $this->respond($payload);
+    }
+
     protected function respond(ActionPayload $payload): Response
     {
         $json = json_encode($payload, JSON_PRETTY_PRINT);

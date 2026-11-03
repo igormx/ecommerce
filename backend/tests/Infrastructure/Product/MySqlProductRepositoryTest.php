@@ -155,6 +155,150 @@ class MySqlProductRepositoryTest extends TestCase
         $this->assertSame([[1, 'Books', PDO::PARAM_STR], [2, 10, PDO::PARAM_INT], [3, 10, PDO::PARAM_INT]], $binds);
     }
 
+    public function testCountAllRunsExpectedSqlAndReturnsInt(): void
+    {
+        $stmt = $this->prophesize(PDOStatement::class);
+        $stmt->execute()->willReturn(true);
+        // PDO returns numeric strings from fetchColumn().
+        $stmt->fetchColumn()->willReturn('3');
+        $this->pdo->prepare('SELECT COUNT(*) FROM products WHERE active = 1')
+            ->willReturn($stmt->reveal())->shouldBeCalledOnce();
+
+        $result = $this->repo->countAll();
+
+        $this->assertSame(3, $result);
+    }
+
+    public function testCountSearchWithQueryAndCategory(): void
+    {
+        $binds = [];
+        $stmt = $this->stmt($binds);
+        $stmt->fetchColumn()->willReturn('2');
+        $captured = '';
+        $this->pdo->prepare(Argument::that(function (string $sql) use (&$captured): bool {
+            $captured = $sql;
+
+            return true;
+        }))->willReturn($stmt->reveal());
+
+        $result = $this->repo->countSearch('  widget  ', 'Cat');
+
+        $this->assertSame(
+            'SELECT COUNT(*) FROM products WHERE active = 1'
+            . ' AND MATCH(name, description, category) AGAINST (? IN NATURAL LANGUAGE MODE)'
+            . ' AND category = ?',
+            $captured
+        );
+        $this->assertStringNotContainsString('ORDER BY', $captured);
+        $this->assertStringNotContainsString('LIMIT', $captured);
+        $this->assertSame([
+            [1, 'widget', PDO::PARAM_STR],
+            [2, 'Cat', PDO::PARAM_STR],
+        ], $binds);
+        $this->assertSame(2, $result);
+    }
+
+    public function testCountSearchWithQueryOnly(): void
+    {
+        $binds = [];
+        $stmt = $this->stmt($binds);
+        $stmt->fetchColumn()->willReturn('4');
+        $captured = '';
+        $this->pdo->prepare(Argument::that(function (string $sql) use (&$captured): bool {
+            $captured = $sql;
+
+            return true;
+        }))->willReturn($stmt->reveal());
+
+        $result = $this->repo->countSearch('widget', null);
+
+        $this->assertStringContainsString(
+            'AND MATCH(name, description, category) AGAINST (? IN NATURAL LANGUAGE MODE)',
+            $captured
+        );
+        $this->assertStringNotContainsString('category = ?', $captured);
+        $this->assertSame([[1, 'widget', PDO::PARAM_STR]], $binds);
+        $this->assertSame(4, $result);
+    }
+
+    public function testCountSearchWithCategoryOnly(): void
+    {
+        $binds = [];
+        $stmt = $this->stmt($binds);
+        $stmt->fetchColumn()->willReturn('1');
+        $captured = '';
+        $this->pdo->prepare(Argument::that(function (string $sql) use (&$captured): bool {
+            $captured = $sql;
+
+            return true;
+        }))->willReturn($stmt->reveal());
+
+        $result = $this->repo->countSearch('', 'Books');
+
+        $this->assertStringNotContainsString('MATCH', $captured);
+        $this->assertStringContainsString('AND category = ?', $captured);
+        $this->assertSame([[1, 'Books', PDO::PARAM_STR]], $binds);
+        $this->assertSame(1, $result);
+    }
+
+    public function testCountSearchWithNeitherQueryNorCategory(): void
+    {
+        $binds = [];
+        $stmt = $this->stmt($binds);
+        $stmt->fetchColumn()->willReturn('5');
+        $captured = '';
+        $this->pdo->prepare(Argument::that(function (string $sql) use (&$captured): bool {
+            $captured = $sql;
+
+            return true;
+        }))->willReturn($stmt->reveal());
+
+        $result = $this->repo->countSearch('   ', null);
+
+        $this->assertSame('SELECT COUNT(*) FROM products WHERE active = 1', $captured);
+        $this->assertSame([], $binds);
+        $this->assertSame(5, $result);
+    }
+
+    public function testCountSearchWhereMatchesSearchWhere(): void
+    {
+        $pageBinds = [];
+        $pageStmt = $this->stmt($pageBinds);
+        $pageStmt->fetchAll(PDO::FETCH_ASSOC)->willReturn([]);
+        $countBinds = [];
+        $countStmt = $this->stmt($countBinds);
+        $countStmt->fetchColumn()->willReturn('0');
+
+        $pageSql = null;
+        $countSql = null;
+        $this->pdo->prepare(Argument::type('string'))->will(
+            function (array $args) use (&$pageSql, &$countSql, $pageStmt, $countStmt) {
+                $sql = $args[0];
+                if (str_starts_with($sql, 'SELECT COUNT(*)')) {
+                    $countSql = $sql;
+
+                    return $countStmt->reveal();
+                }
+                $pageSql = $sql;
+
+                return $pageStmt->reveal();
+            }
+        );
+
+        $this->repo->search('widget', 'Cat', 1, 20);
+        $this->repo->countSearch('widget', 'Cat');
+
+        $this->assertNotNull($pageSql);
+        $this->assertNotNull($countSql);
+        $pageWhere = substr($pageSql, (int) strpos($pageSql, 'WHERE'));
+        $pageWhere = substr($pageWhere, 0, (int) strpos($pageWhere, ' ORDER BY'));
+        $countWhere = substr($countSql, (int) strpos($countSql, 'WHERE'));
+
+        $this->assertSame($pageWhere, $countWhere);
+        // Same params too, since the WHERE builder is the only source of them.
+        $this->assertSame([$pageBinds[0], $pageBinds[1]], [$countBinds[0], $countBinds[1]]);
+    }
+
     public function testFindByIdHydratesProduct(): void
     {
         $binds = [];

@@ -15,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
+use Tests\Support\InMemoryProductRepository;
 
 class ProductServiceTest extends TestCase
 {
@@ -235,5 +236,57 @@ class ProductServiceTest extends TestCase
         $p = $this->product();
         $this->repo->findById(1)->willReturn($p);
         $this->assertSame($p, $this->service->get(1));
+    }
+
+    public function testCountDelegatesToRepository(): void
+    {
+        $this->repo->countAll()->willReturn(7)->shouldBeCalledOnce();
+
+        $this->assertSame(7, $this->service->count());
+    }
+
+    public function testCountSearchTrimsQueryAndNormalizesBlankCategory(): void
+    {
+        $this->repo->countSearch('shoe', null)->willReturn(4)->shouldBeCalledOnce();
+
+        $this->assertSame(4, $this->service->countSearch('  shoe ', '  '));
+    }
+
+    public function testCountSearchDefaultsCategoryToNull(): void
+    {
+        $this->repo->countSearch('shoe', null)->willReturn(1)->shouldBeCalledOnce();
+
+        $this->assertSame(1, $this->service->countSearch('shoe'));
+    }
+
+    public function testCountAgreesWithListUsingInMemoryRepository(): void
+    {
+        $now = new DateTimeImmutable('2024-01-01');
+        $repo = new InMemoryProductRepository(
+            new Product(null, 'A', 'Alpha', null, 'Cat', 100, 1, null, true, $now, $now),
+            new Product(null, 'B', 'Beta', null, 'Cat', 100, 1, null, true, $now, $now),
+            new Product(null, 'C', 'Gamma', null, 'Cat', 100, 1, null, false, $now, $now),
+        );
+        $service = new ProductService($repo);
+
+        $this->assertSame(2, $service->count());
+        $this->assertCount(2, $service->list(1, 20));
+    }
+
+    public function testCountSearchAgreesWithSearchUsingInMemoryRepository(): void
+    {
+        $now = new DateTimeImmutable('2024-01-01');
+        $repo = new InMemoryProductRepository(
+            new Product(null, 'A', 'Alpha Widget', null, 'Cat', 100, 1, null, true, $now, $now),
+            new Product(null, 'B', 'Beta Widget', null, 'Other', 100, 1, null, true, $now, $now),
+            new Product(null, 'C', 'Gamma', null, 'Cat', 100, 1, null, true, $now, $now),
+        );
+        $service = new ProductService($repo);
+
+        $this->assertSame(2, $service->countSearch('widget'));
+        $this->assertCount(2, $service->search('widget'));
+
+        $this->assertSame(1, $service->countSearch('  widget  ', ' Cat '));
+        $this->assertCount(1, $service->search('  widget  ', ' Cat '));
     }
 }

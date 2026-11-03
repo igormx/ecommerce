@@ -33,6 +33,11 @@ class InMemoryProductRepository implements ProductRepositoryInterface
         return array_slice($this->active(), ($page - 1) * $size, $size);
     }
 
+    public function countAll(): int
+    {
+        return count($this->active());
+    }
+
     public function findById(int $id): Product
     {
         return $this->products[$id] ?? throw ProductNotFoundException::forId($id);
@@ -98,17 +103,12 @@ class InMemoryProductRepository implements ProductRepositoryInterface
 
     public function search(string $query, ?string $category, int $page, int $size): array
     {
-        $matches = array_filter(
-            $this->active(),
-            fn (Product $p): bool => ($category === null || $p->category === $category)
-                && (
-                    stripos($p->name, $query) !== false
-                    || stripos((string) $p->description, $query) !== false
-                    || stripos((string) $p->category, $query) !== false
-                )
-        );
+        return array_slice($this->searchMatches($query, $category), ($page - 1) * $size, $size);
+    }
 
-        return array_slice(array_values($matches), ($page - 1) * $size, $size);
+    public function countSearch(string $query, ?string $category): int
+    {
+        return count($this->searchMatches($query, $category));
     }
 
     public function findByIds(array $ids): array
@@ -149,5 +149,23 @@ class InMemoryProductRepository implements ProductRepositoryInterface
     private function active(): array
     {
         return array_values(array_filter($this->products, fn (Product $p): bool => $p->active));
+    }
+
+    /**
+     * Shared by search() and countSearch(), so the two cannot drift.
+     *
+     * @return list<Product>
+     */
+    private function searchMatches(string $query, ?string $category): array
+    {
+        return array_values(array_filter(
+            $this->active(),
+            fn (Product $p): bool => ($category === null || $p->category === $category)
+                && (
+                    stripos($p->name, $query) !== false
+                    || stripos((string) $p->description, $query) !== false
+                    || stripos((string) $p->category, $query) !== false
+                )
+        ));
     }
 }

@@ -18,13 +18,14 @@ class SearchProductsAction extends Action
 
     protected function action(): Response
     {
-        $products = $this->products->search(
-            $this->getSearchTerm(),
-            $this->getCategory(),
-            $this->getPage(),
-            $this->getSize(),
-        );
+        $query = $this->getSearchTerm();
+        $category = $this->getCategory();
+        $page = $this->getPage();
+        $size = $this->getSize();
 
-        return $this->respondWithData(ProductResource::collection($products));
+        $products = $this->products->search($query, $category, $page, $size);
+        $total = $this->products->countSearch($query, $category);
+
+        return $this->respondWithPage(ProductResource::collection($products), $page, $size, $total);
     }
 }

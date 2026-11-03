@@ -17,6 +17,11 @@ interface ProductRepositoryInterface
     public function findAll(int $page, int $size): array;
 
     /**
+     * Count of active products, matching findAll()'s filter.
+     */
+    public function countAll(): int;
+
+    /**
      * @throws ProductNotFoundException
      */
     public function findById(int $id): Product;
@@ -48,6 +53,12 @@ interface ProductRepositoryInterface
      * @return Product[]
      */
     public function search(string $query, ?string $category, int $page, int $size): array;
+
+    /**
+     * Count of active products matching search()'s filter, same semantics
+     * for $query and $category.
+     */
+    public function countSearch(string $query, ?string $category): int;
 
     /**
      * @param int[] $ids

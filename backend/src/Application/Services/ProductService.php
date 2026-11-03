@@ -43,6 +43,14 @@ class ProductService
     }
 
     /**
+     * Count of active products, matching list()'s filter.
+     */
+    public function count(): int
+    {
+        return $this->products->countAll();
+    }
+
+    /**
      * @throws ProductNotFoundException
      */
     public function get(int $id): Product
@@ -163,6 +171,15 @@ class ProductService
             $this->clampPage($page),
             $this->clampSize($size),
         );
+    }
+
+    /**
+     * Count of active products matching search()'s filter, same semantics
+     * for $query and $category.
+     */
+    public function countSearch(string $query, ?string $category = null): int
+    {
+        return $this->products->countSearch(trim($query), $this->nullIfBlank($category));
     }
 
     private function validate(

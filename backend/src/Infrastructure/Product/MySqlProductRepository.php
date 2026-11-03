@@ -35,6 +35,14 @@ class MySqlProductRepository implements ProductRepositoryInterface
         return $this->hydrateAll($stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    public function countAll(): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM products WHERE active = 1');
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function findById(int $id): Product
     {
         $stmt = $this->pdo->prepare('SELECT ' . self::COLUMNS . ' FROM products WHERE id = ?');
@@ -96,17 +104,8 @@ class MySqlProductRepository implements ProductRepositoryInterface
     public function search(string $query, ?string $category, int $page, int $size): array
     {
         $query = trim($query);
-        $sql = 'SELECT ' . self::COLUMNS . ' FROM products WHERE active = 1';
-        $params = [];
-
-        if ($query !== '') {
-            $sql .= ' AND MATCH(name, description, category) AGAINST (? IN NATURAL LANGUAGE MODE)';
-            $params[] = $query;
-        }
-        if ($category !== null) {
-            $sql .= ' AND category = ?';
-            $params[] = $category;
-        }
+        [$where, $params] = $this->searchWhere($query, $category);
+        $sql = 'SELECT ' . self::COLUMNS . ' FROM products ' . $where;
 
         if ($query !== '') {
             $sql .= ' ORDER BY MATCH(name, description, category) AGAINST (? IN NATURAL LANGUAGE MODE) DESC, id';
@@ -126,6 +125,43 @@ class MySqlProductRepository implements ProductRepositoryInterface
         $stmt->execute();
 
         return $this->hydrateAll($stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    public function countSearch(string $query, ?string $category): int
+    {
+        [$where, $params] = $this->searchWhere(trim($query), $category);
+
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM products ' . $where);
+        $i = 1;
+        foreach ($params as $param) {
+            $stmt->bindValue($i++, $param);
+        }
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * The `WHERE` clause shared by search() and countSearch(), so the two
+     * cannot drift. $query must already be trimmed.
+     *
+     * @return array{0: string, 1: array<int, string>}
+     */
+    private function searchWhere(string $query, ?string $category): array
+    {
+        $sql = 'WHERE active = 1';
+        $params = [];
+
+        if ($query !== '') {
+            $sql .= ' AND MATCH(name, description, category) AGAINST (? IN NATURAL LANGUAGE MODE)';
+            $params[] = $query;
+        }
+        if ($category !== null) {
+            $sql .= ' AND category = ?';
+            $params[] = $category;
+        }
+
+        return [$sql, $params];
     }
 
     public function findByIds(array $ids): array

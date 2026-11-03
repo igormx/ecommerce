@@ -198,4 +198,62 @@ class ProductReadEndpointsTest extends TestCase
         $this->assertSame(400, $this->get('/products/search?q=a&size=101')['status']);
         $this->assertSame(400, $this->get('/products/search?q=a&page=0')['status']);
     }
+
+    public function testListIncludesMetaWithTotalAndEchoesPageAndSize(): void
+    {
+        $result = $this->get('/products?page=2&size=2');
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([4], array_column($result['body']['data'], 'id'));
+        $this->assertSame(['page' => 2, 'size' => 2, 'total' => 3], $result['body']['meta']);
+    }
+
+    public function testListPagePastEndReturnsEmptyDataWithCorrectTotal(): void
+    {
+        $result = $this->get('/products?page=5&size=2');
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([], $result['body']['data']);
+        $this->assertSame(['page' => 5, 'size' => 2, 'total' => 3], $result['body']['meta']);
+    }
+
+    public function testSearchIncludesMetaWithTotalAndEchoesPageAndSize(): void
+    {
+        $result = $this->get('/products/search?q=hammer&page=1&size=10');
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([1, 4], array_column($result['body']['data'], 'id'));
+        $this->assertSame(['page' => 1, 'size' => 10, 'total' => 2], $result['body']['meta']);
+    }
+
+    public function testSearchPagePastEndReturnsEmptyDataWithCorrectTotal(): void
+    {
+        $result = $this->get('/products/search?q=hammer&page=3&size=1');
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([], $result['body']['data']);
+        $this->assertSame(['page' => 3, 'size' => 1, 'total' => 2], $result['body']['meta']);
+    }
+
+    /**
+     * @dataProvider nonPaginatedEndpointsProvider
+     */
+    public function testNonPaginatedEndpointsHaveNoMetaKey(string $path): void
+    {
+        $result = $this->get($path);
+
+        $this->assertArrayNotHasKey('meta', $result['body']);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function nonPaginatedEndpointsProvider(): array
+    {
+        return [
+            'view' => ['/products/1'],
+            'view missing (404)' => ['/products/999'],
+            'search missing q (400)' => ['/products/search'],
+        ];
+    }
 }
