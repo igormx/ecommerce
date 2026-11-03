@@ -311,4 +311,20 @@ class ProductServiceTest extends TestCase
 
         $this->assertSame(['Audio', 'Zebra'], $service->listCategories());
     }
+
+    public function testListCategoriesInMemoryRepositoryMirrorsCaseInsensitiveCollation(): void
+    {
+        $now = new DateTimeImmutable('2024-01-01');
+        $repo = new InMemoryProductRepository(
+            new Product(null, 'A', 'A', null, 'zebra', 100, 1, null, true, $now, $now),
+            new Product(null, 'B', 'B', null, 'Audio', 100, 1, null, true, $now, $now),
+            new Product(null, 'C', 'C', null, 'audio', 100, 1, null, true, $now, $now),
+            new Product(null, 'D', 'D', null, 'Zebra', 100, 1, null, true, $now, $now),
+            new Product(null, 'E', 'E', null, 'Books', 100, 1, null, true, $now, $now),
+        );
+        $service = new ProductService($repo);
+
+        // First-seen spelling wins; order ignores case ('Audio' < 'Books' < 'zebra').
+        $this->assertSame(['Audio', 'Books', 'zebra'], $service->listCategories());
+    }
 }

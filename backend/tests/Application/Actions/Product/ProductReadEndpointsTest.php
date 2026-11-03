@@ -224,6 +224,8 @@ class ProductReadEndpointsTest extends TestCase
             'whitespace q' => ['/products/search?q=%20%20'],
             'empty category' => ['/products/search?category='],
             'whitespace q and empty category' => ['/products/search?q=%20&category='],
+            'whitespace category' => ['/products/search?category=%20'],
+            'whitespace q and whitespace category' => ['/products/search?q=%20&category=%20%20'],
         ];
     }
 
@@ -236,6 +238,17 @@ class ProductReadEndpointsTest extends TestCase
         $this->assertSame([4], array_column($blank['body']['data'], 'id'));
         $this->assertSame($categoryOnly['body']['data'], $blank['body']['data']);
         $this->assertSame($categoryOnly['body']['meta'], $blank['body']['meta']);
+    }
+
+    public function testSearchWithQAndWhitespaceCategoryBehavesLikeQOnly(): void
+    {
+        $blank = $this->get('/products/search?q=hammer&category=%20');
+        $qOnly = $this->get('/products/search?q=hammer');
+
+        $this->assertSame(200, $blank['status']);
+        $this->assertNotEmpty($blank['body']['data']);
+        $this->assertSame($qOnly['body']['data'], $blank['body']['data']);
+        $this->assertSame($qOnly['body']['meta'], $blank['body']['meta']);
     }
 
     /**

@@ -40,14 +40,16 @@ class InMemoryProductRepository implements ProductRepositoryInterface
 
     public function findCategories(): array
     {
+        // Mirrors MySQL's case-insensitive collation: DISTINCT keeps the first-seen
+        // spelling and ORDER BY sorts case-insensitively.
         $categories = [];
         foreach ($this->active() as $product) {
             if ($product->category !== null) {
-                $categories[$product->category] = true;
+                $categories[mb_strtolower((string) $product->category)] ??= (string) $product->category;
             }
         }
-        $categories = array_map('strval', array_keys($categories));
-        sort($categories, SORT_STRING);
+        ksort($categories, SORT_STRING);
+        $categories = array_values($categories);
 
         return $categories;
     }

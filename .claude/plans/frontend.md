@@ -23,7 +23,7 @@ Kept deliberately small.
 | Need | Choice | Why |
 |---|---|---|
 | Routing | `react-router-dom` `^6` | Product list, product form and checkout are separate pages with deep links. |
-| Data fetching | plain `fetch` in `src/api/` + small hooks | Six endpoints; a query library is more weight than value. |
+| Data fetching | plain `fetch` in `src/api/` + small hooks | Seven endpoints; a query library is more weight than value. |
 | Cart state | React Context + `useReducer`, persisted to `localStorage` | No state library needed; survives reload. |
 | Styling | Plain CSS (one global file + CSS variables) | No UI dependency to maintain. |
 | Tests | `vitest`, `@testing-library/react`, `@testing-library/user-event`, `jsdom` | Native to Vite. |
@@ -37,7 +37,7 @@ frontend/src/
   App.jsx                    routes + layout shell
   api/
     client.js                request(), ApiError
-    products.js              list, search, get, create, update, remove
+    products.js              list, search (both return { items, meta }), get, create, update, remove
     categories.js            listCategories
     purchases.js             createPurchase
   cart/
@@ -68,7 +68,7 @@ frontend/src/
 ## API client contract
 `request(method, path, body?)` in `api/client.js`:
 - Prefixes `/api`, sends `Content-Type: application/json` when there is a body, parses JSON.
-- Unwraps the envelope: returns `data` on success; `204` returns `null`.
+- Unwraps the envelope: `request()` returns `{ data, meta }` on success, where `data` is the envelope's `data` and `meta` is the envelope's `meta` (`undefined` when absent); `204` returns `{ data: null, meta: undefined }`. The api modules (`products.js`, `categories.js`, `purchases.js`) destructure this: single-resource and mutation calls return just `data`; `listProducts`/`searchProducts` return `{ items: data, meta }`.
 - On non-2xx throws `ApiError { status, type, description, fields }` taken from `error`. Network failures and non-JSON responses (e.g. an nginx 502 HTML page) throw `ApiError` with `type: 'NETWORK_ERROR'` / `'SERVER_ERROR'`, never a raw `SyntaxError`.
 - Pages branch on `error.type`: `VALIDATION_ERROR` (map `fields` onto inputs), `RESOURCE_NOT_FOUND`, `CONFLICT`, `INSUFFICIENT_STOCK`.
 - Server `fields` keys can be nested paths such as `items.0.quantity`; the helper that maps them to inputs must handle that form.
@@ -90,7 +90,7 @@ Everything later copies the client, error handling and layout set here, so revie
 5. `styles.css` with CSS variables, basic responsive layout (works at phone width).
 
 **Tests**
-- `client`: success unwrap, 204, each error type maps to `ApiError` with `fields`, network failure, HTML error body.
+- `client`: success unwrap (`data` and `meta`, `meta` undefined when absent), 204, each error type maps to `ApiError` with `fields`, network failure, HTML error body.
 - `money`: `formatCents` edge cases (0, 5, 100, large); `parsePriceToCents` accepts `"19.99"`, `"19"`, `"0.1"`; rejects `"19.999"`, `"-1"`, `"abc"`, `""`, `"1e3"`.
 - Router smoke test: unknown path renders `NotFoundPage`.
 
@@ -101,7 +101,7 @@ Everything later copies the client, error handling and layout set here, so revie
 ## Phase 2: Product list and search
 
 **Steps**
-1. `api/products.js`: `listProducts({page,size})`, `searchProducts({q,category,page,size})`, `getProduct(id)`; both list calls return `{ items, meta }` (`meta.page`, `meta.size`, `meta.total`). `api/categories.js`: `listCategories()`.
+1. `api/products.js`: `listProducts({page,size})`, `searchProducts({q,category,page,size})`, `getProduct(id)`; built on `request()`'s `{ data, meta }`: both list calls return `{ items: data, meta }` (`meta.page`, `meta.size`, `meta.total`), `getProduct` returns `data`. `api/categories.js`: `listCategories()` returns `data` (an array of strings).
 2. `useProducts` hook (a single hook): reads `q`, `category`, `page` from the URL; calls search whenever `q` or `category` is set (after trimming) and list otherwise; exposes `{items, total, loading, error}`; ignores stale responses (abort the previous request or compare a request counter) so fast typing cannot show old results.
 3. `ProductsPage`: search box (submit on Enter or debounced ~300 ms, resets `page` to 1), results table/cards (name, sku, category, price, stock), a category dropdown filled from `GET /categories` (with an "All" option; changing it resets `page` to 1), and `Pagination` with real pages from `meta.total` ("page X of Y", `Y = ceil(total / size)`; if the page is past the end, step back to the last page), empty state ("No products match"), loading and error states.
 4. Each row has Edit (link), Delete (Phase 3), and Add to cart (Phase 4, disabled when `stock` is 0). Add placeholders now only if they render nothing; do not ship dead buttons.

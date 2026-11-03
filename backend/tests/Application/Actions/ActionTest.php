@@ -267,6 +267,24 @@ class ActionTest extends TestCase
         $this->assertSame('shoes', $result);
     }
 
+    /**
+     * @dataProvider blankTermProvider
+     */
+    public function testGetCategoryIsNullWhenBlank(string $blank): void
+    {
+        $result = $this->invokeProbe('getCategory', [], $this->createQueryRequest('/x', ['category' => $blank]));
+
+        $this->assertNull($result);
+    }
+
+    public function testGetCategoryAcceptsTheMaxLength(): void
+    {
+        $category = str_repeat('a', 100);
+        $result = $this->invokeProbe('getCategory', [], $this->createQueryRequest('/x', ['category' => $category]));
+
+        $this->assertSame($category, $result);
+    }
+
     public function testGetCategoryRejectsAnOverlongValue(): void
     {
         $this->expectException(ValidationException::class);

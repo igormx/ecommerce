@@ -159,7 +159,7 @@ abstract class Action
 
     /**
      * The optional `category` query param: a string, max 100 characters.
-     * Absent or blank resolves to null.
+     * Absent, blank or whitespace-only resolves to null.
      *
      * @throws ValidationException
      */
@@ -172,7 +172,7 @@ abstract class Action
             ['category' => v::optional(v::stringType()->length(null, 100))],
         );
 
-        return is_string($raw) && $raw !== '' ? $raw : null;
+        return is_string($raw) && trim($raw) !== '' ? $raw : null;
     }
 
     /**
