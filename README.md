@@ -135,6 +135,33 @@ Anemic entities with one repository per entity and a service layer.
 
 The full plan is in `.claude/plans/domain-model.md`.
 
+## Design decisions
+
+What was chosen, what was considered instead, and why.
+
+| Area | Chosen | Considered instead | Why |
+|---|---|---|---|
+| Stock safety | An atomic conditional `UPDATE ... WHERE stock >= ?` plus `SELECT ... FOR UPDATE` row locks, all in one transaction | An application-level check only; reserving stock when an item is added to the cart | A check-then-write in PHP can oversell under concurrency. Reservations need expiry and cleanup that this scope does not justify. |
+| Concurrent edits | A `products.version` column bumped on every write; `PUT` must send the version it loaded and gets 409 if stale | `updated_at` as the token; last write wins | `TIMESTAMP` has one-second precision, so an edit and a purchase in the same second would collide. Last write wins silently reverts stock sold in the meantime. |
+| Deadlocks | Rows locked in ascending id order, plus a bounded retry (3 attempts, jittered backoff) that ends in a 503 with `Retry-After` | No retry; retrying any error | Sorting makes deadlocks rare, not impossible. Only transient lock errors are safe to retry, and a 503 tells the client to try again instead of reporting a 500. |
+| Payment order | Decrement stock, then charge; a decline rolls the decrement back | Charge first, then take stock | A customer is never charged for goods that cannot be delivered. |
+| Declined payment | `201` with a `FAILED` order | An error response | A decline is an expected outcome and is recorded as an order. The cart is kept and no stock is taken. |
+| Money | Integer cents everywhere (`priceCents`, `totalCents`); the form parses decimal strings without floats | Decimals or floats | No rounding errors. |
+| Delete | Soft delete (`active = 0`); deleted products return 404 | Hard delete | Order items reference products. |
+| Search | MySQL `FULLTEXT` on name, description and category (whole words only) | `LIKE '%q%'` substring search; a separate search service | Indexed and good enough for the catalog size. The cost is that `shoe` does not match `shoes`. |
+| Pagination | `page` and `size` with `meta.total` | Cursor pagination | The UI needs "page X of Y" and the data set is small. |
+| Seed data | Clean in `backend/db/seed/build_seed.py` and log every change in `DATA_CLEANING_LOG.md` | Hand-editing the CSV | The source stays intact and the cleaning can be reproduced. Rows with injection-style names are dropped. |
+| Frontend state | Plain `fetch`, React Context with `useReducer` for the cart (kept in `localStorage`), search state in the URL | A data-fetching library; a state library | Seven endpoints and one piece of shared state do not need either. URL state makes pages shareable and survives reload. |
+| Storefront vs admin | Separate routes: `/products` for shoppers, `/admin/products` for editing | One list with edit, delete and add to cart together | Different jobs, and Delete next to Add to cart invites misclicks. |
+
+### Known limitations
+
+- The payment charge runs inside the database transaction, so it holds row locks while it runs. That is harmless with the fake gateway. A real gateway would need stock reserved first, the charge made outside the transaction, and an idempotency key.
+- There are no idempotency keys, so a client that retries after a timeout can create a second order.
+- There is no authentication, so the storefront/admin split is a UX separation only, not access control.
+- Search matches whole words only.
+- Out of scope: user accounts, a server-side cart, a real payment form, an order history list, product images, i18n.
+
 ## API
 
 All routes are served under `/api` by nginx (the prefix is stripped before Slim, so the routes below are registered without it). Requests and responses are JSON. Money is always integer cents (`priceCents`, `totalCents`, `unitPriceCents`). Dates are ISO 8601.
