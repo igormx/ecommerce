@@ -103,8 +103,9 @@ All routes are served under `/api` by nginx (the prefix is stripped before Slim,
 
 | Method | Path | Success | Notes |
 |---|---|---|---|
-| GET | `/products` | 200 | `page` (default 1, max 1000000), `size` (default 20, max 100) |
-| GET | `/products/search` | 200 | `q` (required, max 255), `category`, `page` (max 1000000), `size` |
+| GET | `/products` | 200 | `page` (default 1, max 1000000), `size` (default 20, max 100); response has `meta` |
+| GET | `/products/search` | 200 | `q` (max 255) and `category` (max 100, exact match); **at least one of the two is required**, otherwise 400 with `fields.q`; `page`, `size` as above; response has `meta` |
+| GET | `/categories` | 200 | distinct categories of active products, sorted, as a list of strings |
 | GET | `/products/{id}` | 200 | 404 if unknown or deactivated |
 | POST | `/products` | 201 | body: `sku`, `name`, `priceCents`, `stock`, optional `description`, `category`, `weightKg` |
 | PUT | `/products/{id}` | 200 | full replace; same body as create |
@@ -113,6 +114,18 @@ All routes are served under `/api` by nginx (the prefix is stripped before Slim,
 | GET | `/orders/{id}` | 200 | an order as returned by `POST /purchases` |
 
 Unknown body keys are rejected.
+
+### Pagination
+
+`GET /products` and `GET /products/search` return `data` as a bare array and add a top-level `meta` object with the page and size used and the total number of matching active products:
+
+```json
+{ "statusCode": 200,
+  "data": [ { "id": 1, "sku": "RS-001", "name": "Running Shoes" } ],
+  "meta": { "page": 1, "size": 20, "total": 90 } }
+```
+
+A page past the end returns `data: []` with the same `total`. Other endpoints have no `meta` key. A blank or whitespace-only `q` counts as absent.
 
 ### Purchases
 
@@ -145,7 +158,14 @@ Every error uses the same envelope:
              "fields": { "items.0.quantity": "0 must be between 1 and 1000" } } }
 ```
 
-`fields` is present only for field-level validation errors.
+`fields` is present only for field-level validation errors. For example, `GET /products/search` with neither `q` nor `category`:
+
+```json
+{ "statusCode": 400,
+  "error": { "type": "VALIDATION_ERROR",
+             "description": "The request is invalid.",
+             "fields": { "q": "Provide q or category." } } }
+```
 
 | Status | `error.type` | When |
 |---|---|---|

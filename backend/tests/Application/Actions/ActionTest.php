@@ -197,23 +197,60 @@ class ActionTest extends TestCase
         $this->invokeProbe('getSize', [], $this->createQueryRequest('/x', ['size' => '101']));
     }
 
-    public function testGetSearchTermReturnsTheQParam(): void
+    public function testGetOptionalSearchTermReturnsTheQParam(): void
     {
-        $result = $this->invokeProbe('getSearchTerm', [], $this->createQueryRequest('/x', ['q' => 'shoe']));
+        $result = $this->invokeProbe('getOptionalSearchTerm', [], $this->createQueryRequest('/x', ['q' => 'shoe']));
 
         $this->assertSame('shoe', $result);
     }
 
-    public function testGetSearchTermRequiresTheQParam(): void
+    public function testGetOptionalSearchTermIsNullWhenAbsent(): void
     {
-        $this->expectException(ValidationException::class);
-        $this->invokeProbe('getSearchTerm', [], $this->createQueryRequest('/x', []));
+        $result = $this->invokeProbe('getOptionalSearchTerm', [], $this->createQueryRequest('/x', []));
+
+        $this->assertNull($result);
     }
 
-    public function testGetSearchTermRejectsAnOverlongValue(): void
+    /**
+     * @dataProvider blankTermProvider
+     */
+    public function testGetOptionalSearchTermIsNullWhenBlank(string $blank): void
+    {
+        $result = $this->invokeProbe('getOptionalSearchTerm', [], $this->createQueryRequest('/x', ['q' => $blank]));
+
+        $this->assertNull($result);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function blankTermProvider(): array
+    {
+        return ['empty' => [''], 'spaces' => ['   '], 'tab and newline' => ["\t\n"]];
+    }
+
+    public function testGetOptionalSearchTermRejectsANonString(): void
     {
         $this->expectException(ValidationException::class);
-        $this->invokeProbe('getSearchTerm', [], $this->createQueryRequest('/x', ['q' => str_repeat('a', 256)]));
+        $this->invokeProbe('getOptionalSearchTerm', [], $this->createQueryRequest('/x', ['q' => ['a']]));
+    }
+
+    public function testGetOptionalSearchTermRejectsAnOverlongValue(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->invokeProbe(
+            'getOptionalSearchTerm',
+            [],
+            $this->createQueryRequest('/x', ['q' => str_repeat('a', 256)]),
+        );
+    }
+
+    public function testGetOptionalSearchTermAcceptsTheMaxLength(): void
+    {
+        $term = str_repeat('a', 255);
+        $result = $this->invokeProbe('getOptionalSearchTerm', [], $this->createQueryRequest('/x', ['q' => $term]));
+
+        $this->assertSame($term, $result);
     }
 
     public function testGetCategoryIsNullWhenAbsent(): void

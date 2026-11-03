@@ -184,13 +184,81 @@ class ProductReadEndpointsTest extends TestCase
         $this->assertSame([], $result['body']['data']);
     }
 
-    public function testSearchMissingQIs400(): void
+    public function testSearchByCategoryOnlyReturnsFilteredPageWithMeta(): void
     {
-        $result = $this->get('/products/search');
+        $result = $this->get('/products/search?category=Tools');
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([1, 2], array_column($result['body']['data'], 'id'));
+        $this->assertSame(['page' => 1, 'size' => 20, 'total' => 2], $result['body']['meta']);
+    }
+
+    public function testSearchByCategoryOnlyPaginates(): void
+    {
+        $result = $this->get('/products/search?category=Tools&page=2&size=1');
+
+        $this->assertSame([2], array_column($result['body']['data'], 'id'));
+        $this->assertSame(['page' => 2, 'size' => 1, 'total' => 2], $result['body']['meta']);
+    }
+
+    /**
+     * @dataProvider neitherQNorCategoryProvider
+     */
+    public function testSearchWithNeitherQNorCategoryIs400(string $path): void
+    {
+        $result = $this->get($path);
 
         $this->assertSame(400, $result['status']);
         $this->assertSame(ActionError::VALIDATION_ERROR, $result['body']['error']['type']);
-        $this->assertArrayHasKey('q', $result['body']['error']['fields']);
+        $this->assertSame('Provide q or category.', $result['body']['error']['fields']['q']);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function neitherQNorCategoryProvider(): array
+    {
+        return [
+            'no params' => ['/products/search'],
+            'empty q' => ['/products/search?q='],
+            'whitespace q' => ['/products/search?q=%20%20'],
+            'empty category' => ['/products/search?category='],
+            'whitespace q and empty category' => ['/products/search?q=%20&category='],
+        ];
+    }
+
+    public function testSearchWithWhitespaceQAndCategoryBehavesLikeCategoryOnly(): void
+    {
+        $blank = $this->get('/products/search?q=%20%20&category=Kitchen');
+        $categoryOnly = $this->get('/products/search?category=Kitchen');
+
+        $this->assertSame(200, $blank['status']);
+        $this->assertSame([4], array_column($blank['body']['data'], 'id'));
+        $this->assertSame($categoryOnly['body']['data'], $blank['body']['data']);
+        $this->assertSame($categoryOnly['body']['meta'], $blank['body']['meta']);
+    }
+
+    /**
+     * @dataProvider overlongSearchParamProvider
+     */
+    public function testSearchOverlongParamIs400(string $path, string $field): void
+    {
+        $result = $this->get($path);
+
+        $this->assertSame(400, $result['status']);
+        $this->assertArrayHasKey($field, $result['body']['error']['fields']);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function overlongSearchParamProvider(): array
+    {
+        return [
+            'q 256' => ['/products/search?q=' . str_repeat('a', 256), 'q'],
+            'category 101' => ['/products/search?category=' . str_repeat('a', 101), 'category'],
+            'q 256 with category' => ['/products/search?category=Tools&q=' . str_repeat('a', 256), 'q'],
+        ];
     }
 
     public function testSearchInvalidPagingIs400(): void
@@ -284,7 +352,7 @@ class ProductReadEndpointsTest extends TestCase
             'view' => ['/products/1'],
             'view missing (404)' => ['/products/999'],
             'categories' => ['/categories'],
-            'search missing q (400)' => ['/products/search'],
+            'search with neither q nor category (400)' => ['/products/search'],
         ];
     }
 }

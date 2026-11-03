@@ -140,21 +140,21 @@ abstract class Action
     }
 
     /**
-     * The required `q` query param: a non-empty string, max 255 characters.
+     * The optional `q` query param: a string, max 255 characters. Absent,
+     * blank or whitespace-only resolves to null.
      *
      * @throws ValidationException
      */
-    protected function getSearchTerm(): string
+    protected function getOptionalSearchTerm(): ?string
     {
         $raw = $this->request->getQueryParams()['q'] ?? null;
-        $value = is_string($raw) ? $raw : '';
 
-        $validated = $this->validator->validate(
-            ['q' => $value],
-            ['q' => v::stringType()->notEmpty()->length(1, 255)],
+        $this->validator->validate(
+            ['q' => $raw],
+            ['q' => v::optional(v::stringType()->length(null, 255))],
         );
 
-        return (string) $validated['q'];
+        return is_string($raw) && trim($raw) !== '' ? $raw : null;
     }
 
     /**
