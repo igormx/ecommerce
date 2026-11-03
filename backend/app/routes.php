@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Application\Actions\Category\ListCategoriesAction;
 use App\Application\Actions\Order\ViewOrderAction;
 use App\Application\Actions\Product\CreateProductAction;
 use App\Application\Actions\Product\DeactivateProductAction;
@@ -33,6 +34,8 @@ return function (App $app) {
     $app->post('/products', CreateProductAction::class);
     $app->put('/products/{id}', UpdateProductAction::class);
     $app->delete('/products/{id}', DeactivateProductAction::class);
+
+    $app->get('/categories', ListCategoriesAction::class);
 
     $app->post('/purchases', CreatePurchaseAction::class);
     $app->get('/orders/{id}', ViewOrderAction::class);

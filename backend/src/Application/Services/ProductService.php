@@ -51,6 +51,16 @@ class ProductService
     }
 
     /**
+     * Distinct, non-null categories of active products, sorted.
+     *
+     * @return list<string>
+     */
+    public function listCategories(): array
+    {
+        return $this->products->findCategories();
+    }
+
+    /**
      * @throws ProductNotFoundException
      */
     public function get(int $id): Product

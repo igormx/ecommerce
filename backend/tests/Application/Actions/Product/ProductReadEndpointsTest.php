@@ -38,9 +38,9 @@ class ProductReadEndpointsTest extends TestCase
     /**
      * @return array{status: int, body: array}
      */
-    private function get(string $path): array
+    private function get(string $path, ?InMemoryProductRepository $repo = null): array
     {
-        $repo = new InMemoryProductRepository(
+        $repo ??= new InMemoryProductRepository(
             $this->product(1, 'HAM-1', 'Hammer'),
             $this->product(2, 'SAW-1', 'Saw'),
             $this->product(3, 'OLD-1', 'Retired', 'Tools', false),
@@ -235,6 +235,36 @@ class ProductReadEndpointsTest extends TestCase
         $this->assertSame(['page' => 3, 'size' => 1, 'total' => 2], $result['body']['meta']);
     }
 
+    public function testCategoriesReturnsSortedListOfStrings(): void
+    {
+        $result = $this->get('/categories');
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame(200, $result['body']['statusCode']);
+        $this->assertSame(['Kitchen', 'Tools'], $result['body']['data']);
+    }
+
+    public function testCategoriesOmitsCategoryOnceItsOnlyProductIsDeactivated(): void
+    {
+        $repo = new InMemoryProductRepository(
+            $this->product(1, 'HAM-1', 'Hammer'),
+            $this->product(2, 'MUG-1', 'Mug', 'Kitchen'),
+        );
+        $repo->deactivate(2);
+
+        $result = $this->get('/categories', $repo);
+
+        $this->assertSame(['Tools'], $result['body']['data']);
+    }
+
+    public function testCategoriesIsEmptyListForEmptyDatabase(): void
+    {
+        $result = $this->get('/categories', new InMemoryProductRepository());
+
+        $this->assertSame(200, $result['status']);
+        $this->assertSame([], $result['body']['data']);
+    }
+
     /**
      * @dataProvider nonPaginatedEndpointsProvider
      */
@@ -253,6 +283,7 @@ class ProductReadEndpointsTest extends TestCase
         return [
             'view' => ['/products/1'],
             'view missing (404)' => ['/products/999'],
+            'categories' => ['/categories'],
             'search missing q (400)' => ['/products/search'],
         ];
     }

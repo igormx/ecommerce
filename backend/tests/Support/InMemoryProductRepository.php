@@ -38,6 +38,20 @@ class InMemoryProductRepository implements ProductRepositoryInterface
         return count($this->active());
     }
 
+    public function findCategories(): array
+    {
+        $categories = [];
+        foreach ($this->active() as $product) {
+            if ($product->category !== null) {
+                $categories[$product->category] = true;
+            }
+        }
+        $categories = array_map('strval', array_keys($categories));
+        sort($categories, SORT_STRING);
+
+        return $categories;
+    }
+
     public function findById(int $id): Product
     {
         return $this->products[$id] ?? throw ProductNotFoundException::forId($id);

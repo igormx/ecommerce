@@ -289,4 +289,26 @@ class ProductServiceTest extends TestCase
         $this->assertSame(1, $service->countSearch('  widget  ', ' Cat '));
         $this->assertCount(1, $service->search('  widget  ', ' Cat '));
     }
+
+    public function testListCategoriesDelegatesToRepository(): void
+    {
+        $this->repo->findCategories()->willReturn(['A', 'B'])->shouldBeCalledOnce();
+
+        $this->assertSame(['A', 'B'], $this->service->listCategories());
+    }
+
+    public function testListCategoriesAreDistinctSortedAndExcludeNullAndInactiveUsingInMemoryRepository(): void
+    {
+        $now = new DateTimeImmutable('2024-01-01');
+        $repo = new InMemoryProductRepository(
+            new Product(null, 'A', 'A', null, 'Zebra', 100, 1, null, true, $now, $now),
+            new Product(null, 'B', 'B', null, 'Audio', 100, 1, null, true, $now, $now),
+            new Product(null, 'C', 'C', null, 'Audio', 100, 1, null, true, $now, $now),
+            new Product(null, 'D', 'D', null, null, 100, 1, null, true, $now, $now),
+            new Product(null, 'E', 'E', null, 'Hidden', 100, 1, null, false, $now, $now),
+        );
+        $service = new ProductService($repo);
+
+        $this->assertSame(['Audio', 'Zebra'], $service->listCategories());
+    }
 }

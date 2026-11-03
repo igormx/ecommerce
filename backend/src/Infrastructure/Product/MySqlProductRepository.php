@@ -43,6 +43,16 @@ class MySqlProductRepository implements ProductRepositoryInterface
         return (int) $stmt->fetchColumn();
     }
 
+    public function findCategories(): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT DISTINCT category FROM products WHERE active = 1 AND category IS NOT NULL ORDER BY category'
+        );
+        $stmt->execute();
+
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     public function findById(int $id): Product
     {
         $stmt = $this->pdo->prepare('SELECT ' . self::COLUMNS . ' FROM products WHERE id = ?');

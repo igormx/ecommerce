@@ -22,6 +22,13 @@ interface ProductRepositoryInterface
     public function countAll(): int;
 
     /**
+     * Distinct, non-null categories of active products, sorted ascending.
+     *
+     * @return list<string>
+     */
+    public function findCategories(): array;
+
+    /**
      * @throws ProductNotFoundException
      */
     public function findById(int $id): Product;

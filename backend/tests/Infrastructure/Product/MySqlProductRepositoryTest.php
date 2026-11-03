@@ -169,6 +169,28 @@ class MySqlProductRepositoryTest extends TestCase
         $this->assertSame(3, $result);
     }
 
+    public function testFindCategoriesRunsExpectedSqlAndReturnsStrings(): void
+    {
+        $stmt = $this->prophesize(PDOStatement::class);
+        $stmt->execute()->willReturn(true);
+        $stmt->fetchAll(PDO::FETCH_COLUMN)->willReturn(['Audio', 'Footwear']);
+        $this->pdo->prepare(
+            'SELECT DISTINCT category FROM products WHERE active = 1 AND category IS NOT NULL ORDER BY category'
+        )->willReturn($stmt->reveal())->shouldBeCalledOnce();
+
+        $this->assertSame(['Audio', 'Footwear'], $this->repo->findCategories());
+    }
+
+    public function testFindCategoriesReturnsEmptyListWhenNoRows(): void
+    {
+        $stmt = $this->prophesize(PDOStatement::class);
+        $stmt->execute()->willReturn(true);
+        $stmt->fetchAll(PDO::FETCH_COLUMN)->willReturn([]);
+        $this->pdo->prepare(Argument::containingString('SELECT DISTINCT category'))->willReturn($stmt->reveal());
+
+        $this->assertSame([], $this->repo->findCategories());
+    }
+
     public function testCountSearchWithQueryAndCategory(): void
     {
         $binds = [];
