@@ -57,6 +57,47 @@ beforeEach(() => window.localStorage.clear());
 afterEach(() => vi.unstubAllGlobals());
 
 describe('CartPage', () => {
+  describe('quantity input editing', () => {
+    const qty = () => screen.getByLabelText('Quantity for Product 1');
+
+    it('lets the user clear the field and type a new quantity', async () => {
+      seed([[prod(1), 1]]);
+      renderCart();
+      const user = userEvent.setup();
+      await user.clear(qty());
+      expect(qty()).toHaveValue(null);
+      await user.type(qty(), '5');
+      expect(qty()).toHaveValue(5);
+      expect(stored()[1].quantity).toBe(5);
+    });
+
+    it('restores the previous quantity when blurred empty', async () => {
+      seed([[prod(1), 3]]);
+      renderCart();
+      const user = userEvent.setup();
+      await user.clear(qty());
+      await user.tab();
+      expect(qty()).toHaveValue(3);
+      expect(stored()[1].quantity).toBe(3);
+    });
+
+    it('clamps 0 up to 1 and over-stock down to stock', async () => {
+      seed([[prod(1), 4]]);
+      renderCart();
+      const user = userEvent.setup();
+      await user.clear(qty());
+      await user.type(qty(), '0');
+      await user.tab();
+      expect(qty()).toHaveValue(1);
+      expect(stored()[1].quantity).toBe(1);
+      await user.clear(qty());
+      await user.type(qty(), '99');
+      await user.tab();
+      expect(qty()).toHaveValue(10);
+      expect(stored()[1].quantity).toBe(10);
+    });
+  });
+
   it('shows the empty state', () => {
     renderCart();
     expect(screen.getByText('Your cart is empty.')).toBeInTheDocument();

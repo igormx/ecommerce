@@ -21,6 +21,15 @@ export default function CartPage() {
   const [declined, setDeclined] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
+  // In-progress quantity text per product id, so the field may be empty mid-edit.
+  const [drafts, setDrafts] = useState({});
+  const clearDraft = (id) =>
+    setDrafts((d) => {
+      if (!(id in d)) return d;
+      const next = { ...d };
+      delete next[id];
+      return next;
+    });
   // A ref, not state: two clicks in the same tick must still send one request.
   const inFlight = useRef(false);
 
@@ -175,7 +184,7 @@ export default function CartPage() {
                       aria-label={`Quantity for ${product.name}`}
                       min={1}
                       max={maxQuantity(product)}
-                      value={quantity}
+                      value={product.id in drafts ? drafts[product.id] : quantity}
                       aria-invalid={fields && (fields[qtyPath] || fields[idPath]) ? 'true' : undefined}
                       aria-describedby={
                         [fields?.[qtyPath] && fieldErrorId(qtyPath), fields?.[idPath] && fieldErrorId(idPath)]
@@ -184,8 +193,19 @@ export default function CartPage() {
                       }
                       disabled={busy}
                       onChange={(e) => {
-                        const n = parseInt(e.target.value, 10);
-                        if (!Number.isNaN(n)) setQuantity(product.id, n);
+                        const raw = e.target.value;
+                        const n = parseInt(raw, 10);
+                        if (Number.isNaN(n)) {
+                          setDrafts((d) => ({ ...d, [product.id]: raw }));
+                          return;
+                        }
+                        const max = maxQuantity(product);
+                        setDrafts((d) => ({ ...d, [product.id]: n > max ? String(max) : raw }));
+                        setQuantity(product.id, n);
+                      }}
+                      onBlur={() => clearDraft(product.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') clearDraft(product.id);
                       }}
                     />
                     <FieldError fields={fields} name={qtyPath} />
