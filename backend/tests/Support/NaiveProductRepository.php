@@ -18,6 +18,12 @@ final class NaiveProductRepository extends MySqlProductRepository
         parent::__construct($db);
     }
 
+    /** Also WRONG on purpose: no row lock, so the harness check stays meaningful. */
+    public function findByIdsForUpdate(array $ids): array
+    {
+        return $this->findByIds($ids);
+    }
+
     public function decrementStock(int $productId, int $quantity): bool
     {
         $stmt = $this->db->prepare('SELECT stock FROM products WHERE id = ?');

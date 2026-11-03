@@ -38,7 +38,7 @@ foreach ($job['lines'] as $productId => $quantity) {
 
 try {
     $order = $service->purchase($lines);
-    $result = ['outcome' => $order->status->value];
+    $result = ['outcome' => $order->status->value, 'total' => $order->totalCents];
 } catch (Throwable $e) {
     $result = ['outcome' => 'ERROR', 'class' => $e::class, 'message' => $e->getMessage()];
 }

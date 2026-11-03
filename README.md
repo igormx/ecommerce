@@ -221,6 +221,7 @@ Every error uses the same envelope:
 | 404 | `RESOURCE_NOT_FOUND` | Unknown product or order, or a purchase referencing an unknown or deactivated product |
 | 409 | `CONFLICT` | Duplicate SKU (no `fields`), or a stale `version` on `PUT /products/{id}` (`fields.version` set) |
 | 409 | `INSUFFICIENT_STOCK` | Not enough stock for a purchase line |
+| 503 | `SERVICE_UNAVAILABLE` | A purchase hit a database deadlock or lock-wait timeout on all 3 attempts (the API retries transient errors itself, with a short jittered backoff, before giving up). Nothing was charged or decremented; send the same request again. Has a `Retry-After: 1` header |
 | 500 | `SERVER_ERROR` | Unexpected failure |
 
 ## Roadmap

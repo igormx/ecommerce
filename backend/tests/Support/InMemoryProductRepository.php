@@ -147,6 +147,14 @@ class InMemoryProductRepository implements ProductRepositoryInterface
         ));
     }
 
+    public function findByIdsForUpdate(array $ids): array
+    {
+        $found = $this->findByIds($ids);
+        usort($found, static fn (Product $a, Product $b): int => $a->id <=> $b->id);
+
+        return $found;
+    }
+
     public function decrementStock(int $productId, int $quantity): bool
     {
         $p = $this->products[$productId] ?? null;

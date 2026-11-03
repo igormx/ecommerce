@@ -9,6 +9,7 @@ use App\Application\Handlers\HttpErrorHandler;
 use App\Application\Services\Exception\InvalidPurchaseException;
 use App\Application\Services\Exception\ValidationException;
 use App\Domain\Order\Exception\OrderNotFoundException;
+use App\Domain\Persistence\Exception\TransientTransactionException;
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\InsufficientStockException;
 use App\Domain\Product\Exception\ProductNotFoundException;
@@ -62,6 +63,17 @@ class HttpErrorHandlerTest extends TestCase
 
         $this->assertSame(400, $result['status']);
         $this->assertSame(ActionError::VALIDATION_ERROR, $result['body']['error']['type']);
+        $this->assertArrayNotHasKey('fields', $result['body']['error']);
+    }
+
+    public function testTransientTransactionExceptionMapsTo503WithRetryEnvelope(): void
+    {
+        $result = $this->handle(new TransientTransactionException(3));
+
+        $this->assertSame(503, $result['status']);
+        $this->assertSame(503, $result['body']['statusCode']);
+        $this->assertSame(ActionError::SERVICE_UNAVAILABLE, $result['body']['error']['type']);
+        $this->assertStringContainsString('retry', $result['body']['error']['description']);
         $this->assertArrayNotHasKey('fields', $result['body']['error']);
     }
 

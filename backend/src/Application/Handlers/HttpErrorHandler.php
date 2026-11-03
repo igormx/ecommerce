@@ -8,6 +8,7 @@ use App\Application\Actions\ActionError;
 use App\Application\Actions\ActionPayload;
 use App\Application\Services\Exception\InvalidPurchaseException;
 use App\Application\Services\Exception\ValidationException;
+use App\Domain\Persistence\Exception\TransientTransactionException;
 use App\Domain\Product\Exception\DuplicateSkuException;
 use App\Domain\Product\Exception\InsufficientStockException;
 use App\Domain\Product\Exception\StaleProductException;
@@ -31,6 +32,7 @@ class HttpErrorHandler extends SlimErrorHandler
     {
         $exception = $this->exception;
         $statusCode = 500;
+        $retryAfter = false;
         $error = new ActionError(
             ActionError::SERVER_ERROR,
             'An internal error has occurred while processing your request.'
@@ -57,6 +59,13 @@ class HttpErrorHandler extends SlimErrorHandler
         } elseif ($exception instanceof InsufficientStockException) {
             $statusCode = 409;
             $error = new ActionError(ActionError::INSUFFICIENT_STOCK, $exception->getMessage());
+        } elseif ($exception instanceof TransientTransactionException) {
+            $statusCode = 503;
+            $retryAfter = true;
+            $error = new ActionError(
+                ActionError::SERVICE_UNAVAILABLE,
+                'The service is busy right now. Please retry your request in a moment.'
+            );
         } elseif ($exception instanceof HttpException) {
             $statusCode = $exception->getCode();
             $error->setDescription($exception->getMessage());
@@ -89,6 +98,10 @@ class HttpErrorHandler extends SlimErrorHandler
 
         $response = $this->responseFactory->createResponse($statusCode);
         $response->getBody()->write($encodedPayload);
+
+        if ($retryAfter) {
+            $response = $response->withHeader('Retry-After', '1');
+        }
 
         return $response->withHeader('Content-Type', 'application/json');
     }

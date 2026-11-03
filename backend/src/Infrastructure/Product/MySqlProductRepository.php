@@ -194,6 +194,26 @@ class MySqlProductRepository implements ProductRepositoryInterface
         return $this->hydrateAll($stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
+    public function findByIdsForUpdate(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if ($ids === []) {
+            return [];
+        }
+        sort($ids);
+
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+        $stmt = $this->pdo->prepare(
+            'SELECT ' . self::COLUMNS . ' FROM products WHERE id IN (' . $placeholders . ') ORDER BY id FOR UPDATE'
+        );
+        foreach ($ids as $i => $id) {
+            $stmt->bindValue($i + 1, $id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        return $this->hydrateAll($stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
     public function decrementStock(int $productId, int $quantity): bool
     {
         $stmt = $this->pdo->prepare(

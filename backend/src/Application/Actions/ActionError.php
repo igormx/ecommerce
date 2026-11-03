@@ -16,6 +16,7 @@ class ActionError implements JsonSerializable
     public const NOT_IMPLEMENTED = 'NOT_IMPLEMENTED';
     public const RESOURCE_NOT_FOUND = 'RESOURCE_NOT_FOUND';
     public const SERVER_ERROR = 'SERVER_ERROR';
+    public const SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE';
     public const UNAUTHENTICATED = 'UNAUTHENTICATED';
     public const VALIDATION_ERROR = 'VALIDATION_ERROR';
     public const VERIFICATION_ERROR = 'VERIFICATION_ERROR';

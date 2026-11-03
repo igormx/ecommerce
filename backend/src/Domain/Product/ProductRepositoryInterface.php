@@ -79,6 +79,16 @@ interface ProductRepositoryInterface
     public function findByIds(array $ids): array;
 
     /**
+     * Locks and returns the rows (active or not) for the given ids with
+     * SELECT ... FOR UPDATE, in ascending id order. Unknown ids are omitted.
+     * Must be called inside a transaction; the locks last until it ends.
+     *
+     * @param int[] $ids
+     * @return Product[] ordered by id
+     */
+    public function findByIdsForUpdate(array $ids): array;
+
+    /**
      * Atomically decrements stock:
      * UPDATE products SET stock = stock - ?, version = version + 1 WHERE id = ? AND stock >= ? AND active = 1.
      * Returns true iff a row was affected. Does not manage transactions; the

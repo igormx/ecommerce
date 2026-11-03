@@ -61,6 +61,116 @@ class PurchaseConcurrencyTest extends MySqlIntegrationTestCase
         $this->assertGreaterThan(5, $paid, 'the naive read-then-write decrement should oversell');
     }
 
+    public function testPriceChangeCommittedWhilePurchaseWaitsOnLockIsChargedAtLockedPrice(): void
+    {
+        $id = $this->insertProduct('PRICE-1', 5, '10.00');
+
+        // Connection B holds the row lock with an uncommitted price change.
+        $other = self::connect();
+        $other->beginTransaction();
+        $other->exec('UPDATE products SET price = 25.00 WHERE id = ' . $id);
+
+        $worker = $this->startWorker('purchase_worker.php', ['lines' => [$id => 2], 'naive' => false]);
+        $this->release($worker);
+
+        // Deterministic: wait until the purchase is genuinely blocked on the row lock.
+        $this->waitUntilBlocked();
+        $this->assertSame(5, $this->stockOf($id), 'purchase must not have written anything yet');
+        $other->commit();
+
+        $result = $this->collect($worker);
+
+        $this->assertSame('PAID', $result['outcome'], json_encode($result));
+        $this->assertSame(5000, $result['total'], 'must charge the committed (locked) price, not the old 10.00');
+        $this->assertSame(3, $this->stockOf($id));
+        $this->assertSame(
+            2500,
+            $this->scalar('SELECT unit_price_cents FROM order_items LIMIT 1'),
+        );
+    }
+
+    public function testForcedDeadlockIsRetriedAndBothTransactionsSucceed(): void
+    {
+        $a = $this->insertProduct('DL-A', 10);
+        $b = $this->insertProduct('DL-B', 10);
+
+        $workers = [
+            $this->startWorker('deadlock_worker.php', ['first' => $a, 'second' => $b]),
+            $this->startWorker('deadlock_worker.php', ['first' => $b, 'second' => $a]),
+        ];
+        foreach ($workers as $w) {
+            $this->release($w);
+        }
+        $results = array_map(fn (array $w): array => $this->collect($w), $workers);
+
+        $this->assertSame('OK', $results[0]['outcome'], json_encode($results));
+        $this->assertSame('OK', $results[1]['outcome'], json_encode($results));
+        $this->assertSame(
+            3,
+            $results[0]['attempts'] + $results[1]['attempts'],
+            'exactly one deadlock victim must have been retried once: ' . json_encode($results)
+        );
+        $this->assertSame(8, $this->stockOf($a));
+        $this->assertSame(8, $this->stockOf($b));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{process: resource, pipes: array<int, resource>}
+     */
+    private function startWorker(string $script, array $payload): array
+    {
+        $process = proc_open(
+            [PHP_BINARY, __DIR__ . '/' . $script, (string) json_encode($payload)],
+            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            null,
+            null
+        );
+        $this->assertIsResource($process);
+        if (fgets($pipes[1]) !== "READY\n") {
+            $this->fail('worker failed to start: ' . stream_get_contents($pipes[2]));
+        }
+
+        return ['process' => $process, 'pipes' => $pipes];
+    }
+
+    /** @param array{process: resource, pipes: array<int, resource>} $w */
+    private function release(array $w): void
+    {
+        fwrite($w['pipes'][0], "go\n");
+        fflush($w['pipes'][0]);
+    }
+
+    /**
+     * @param array{process: resource, pipes: array<int, resource>} $w
+     * @return array<string, mixed>
+     */
+    private function collect(array $w): array
+    {
+        $decoded = json_decode((string) stream_get_contents($w['pipes'][1]), true);
+        $result = is_array($decoded)
+            ? $decoded
+            : ['outcome' => 'ERROR', 'class' => 'worker crashed', 'message' => stream_get_contents($w['pipes'][2])];
+        foreach ($w['pipes'] as $pipe) {
+            fclose($pipe);
+        }
+        proc_close($w['process']);
+
+        return $result;
+    }
+
+    private function waitUntilBlocked(): void
+    {
+        for ($i = 0; $i < 100; $i++) {
+            if ($this->scalar('SELECT COUNT(*) FROM performance_schema.data_lock_waits') > 0) {
+                return;
+            }
+            usleep(50_000);
+        }
+        $this->fail('purchase never blocked on the row lock');
+    }
+
     private function scalar(string $sql): int
     {
         return (int) $this->pdo->query($sql)->fetchColumn();
